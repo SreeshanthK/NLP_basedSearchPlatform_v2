@@ -1,4 +1,4 @@
-# NLP-Based Search Backend - Restructured
+# NLP-Based Search Backend 
 
 This is a professionally restructured version of the NLP-based search backend. The code has been organized into a clean, modular architecture following industry best practices.
 
