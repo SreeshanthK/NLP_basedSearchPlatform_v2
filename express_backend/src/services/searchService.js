@@ -1,37 +1,365 @@
-const { getESClient, getMongoClient } = require('../config/database');
+const { getESClient, getMongoClient, initializeConnections } = require('../config/database');
 const { applyNLPScoring } = require('./scoringService');
+const vectorService = require('./vectorService');
+require('dotenv').config();
 
 class SearchService {
     async searchProducts(query, filters) {
-        const esClient = getESClient();
-        const mongoClient = getMongoClient();
+        console.log('🔍 SearchService.searchProducts called with query:', query);
+
+        let esClient = getESClient();
+        let mongoClient = getMongoClient();
+        
+        if (!esClient && !mongoClient) {
+            console.log('Initializing database connections...');
+            await initializeConnections();
+            esClient = getESClient();
+            mongoClient = getMongoClient();
+        }
+        
+        let allResults = [];
+        let searchMethods = {
+            vector: false,
+            elasticsearch: false,
+            mongodb: false
+        };
+
+        if (process.env.VECTOR_SEARCH_ENABLED === 'true') {
+            try {
+                console.log('Vector search is enabled, attempting vector search...');
+                const vectorResults = await this.performVectorSearch(query, 120);
+                console.log(`Vector search returned ${vectorResults.length} results`);
+                if (vectorResults.length > 0) {
+                    
+                    const relevantVectorResults = vectorResults.filter(result => 
+                        result.similarity > 0.3 || result.vectorScore > 1.0
+                    );
+                    console.log(`Filtered to ${relevantVectorResults.length} relevant vector results`);
+                    if (relevantVectorResults.length > 0) {
+                        allResults = allResults.concat(relevantVectorResults);
+                        searchMethods.vector = true;
+                        console.log(`Vector search found ${relevantVectorResults.length} relevant results`);
+                    }
+                }
+            } catch (error) {
+                console.error('Vector search failed:', error);
+            }
+        } else {
+            console.log('Vector search is disabled. VECTOR_SEARCH_ENABLED =', process.env.VECTOR_SEARCH_ENABLED);
+        }
 
         if (esClient) {
             try {
                 const products = await this.searchWithElasticsearch(esClient, query, filters);
                 if (products.length > 0) {
-                    return applyNLPScoring(products, filters, query);
+                    const elasticResults = products.map(product => ({
+                        ...product,
+                        searchType: 'elasticsearch',
+                        elasticScore: product._score || 1
+                    }));
+                    allResults = allResults.concat(elasticResults);
+                    searchMethods.elasticsearch = true;
                 }
             } catch (error) {
+                console.error('Elasticsearch search failed:', error);
             }
         }
 
         if (mongoClient) {
-            const products = await this.searchWithMongoDB(mongoClient, query, filters);
-            return applyNLPScoring(products, filters, query);
+            try {
+                const mongoResult = await this.searchWithMongoDB(mongoClient, query, filters);
+                if (mongoResult.products.length > 0) {
+                    const mongoResults = mongoResult.products.map(product => ({
+                        ...product,
+                        searchType: 'mongodb',
+                        mongoScore: 0.8,
+                        wasCategorySearch: mongoResult.wasCategorySearch || false
+                    }));
+                    allResults = allResults.concat(mongoResults);
+                    searchMethods.mongodb = true;
+                    console.log(`MongoDB search found ${mongoResults.length} results`);
+                }
+            } catch (error) {
+                console.error('MongoDB search failed:', error);
+            }
         }
 
-        throw new Error('No search backend configured');
+        if (allResults.length === 0) {
+            console.log('No results found from any search method, trying fallback query...');
+
+            if (mongoClient) {
+                try {
+                    const fallbackProducts = await this.getFallbackProducts(mongoClient, query);
+                    if (fallbackProducts.length > 0) {
+                        console.log(`Fallback: found ${fallbackProducts.length} products using broad search`);
+                        return {
+                            products: fallbackProducts.map(product => ({
+                                ...product,
+                                isFallbackResult: true,
+                                searchType: 'fallback'
+                            })),
+                            searchMethods: { fallback: true },
+                            totalResults: fallbackProducts.length,
+                            isFallback: true
+                        };
+                    }
+                } catch (error) {
+                    console.error('Fallback search failed:', error);
+                }
+            }
+            
+            return {
+                products: [],
+                searchMethods: searchMethods,
+                totalResults: 0
+            };
+        }
+
+        const mergedResults = this.mergeSearchResults(allResults);
+
+        let filteredResults = mergedResults;
+        if (filters.price_min || filters.price_max) {
+            console.log(`Applying hard price filters: min=${filters.price_min}, max=${filters.price_max}`);
+            filteredResults = mergedResults.filter(product => {
+                let passesFilter = true;
+                if (filters.price_min && product.price < filters.price_min) {
+                    passesFilter = false;
+                }
+                if (filters.price_max && product.price > filters.price_max) {
+                    passesFilter = false;
+                }
+                return passesFilter;
+            });
+            console.log(`Hard price filter: ${mergedResults.length} → ${filteredResults.length} products`);
+        }
+        
+        const scoredResults = applyNLPScoring(filteredResults, filters, query);
+
+        const isPriceFocused = filters.price_min || filters.price_max || 
+                             query.toLowerCase().includes('under') || 
+                             query.toLowerCase().includes('over') ||
+                             query.toLowerCase().includes('above') ||
+                             query.toLowerCase().includes('below') ||
+                             query.toLowerCase().includes('budget') ||
+                             query.toLowerCase().includes('price') ||
+                             /\d+/.test(query); 
+
+        if (isPriceFocused) {
+            console.log('Price-focused query detected, sorting by price relevance');
+            scoredResults.sort((a, b) => {
+                
+                if (filters.price_min) {
+                    const aValidPrice = a.price >= filters.price_min;
+                    const bValidPrice = b.price >= filters.price_min;
+                    
+                    if (aValidPrice && !bValidPrice) return -1;
+                    if (!aValidPrice && bValidPrice) return 1;
+                    if (aValidPrice && bValidPrice) {
+                        
+                        return a.price - b.price;
+                    }
+                }
+
+                if (filters.price_max) {
+                    const aValidPrice = a.price <= filters.price_max;
+                    const bValidPrice = b.price <= filters.price_max;
+                    
+                    if (aValidPrice && !bValidPrice) return -1;
+                    if (!aValidPrice && bValidPrice) return 1;
+                    if (aValidPrice && bValidPrice) {
+                        
+                        return b.price - a.price;
+                    }
+                }
+
+                const aScore = (a.nlp_score || 0) + (a.vectorScore || 0) * 2;
+                const bScore = (b.nlp_score || 0) + (b.vectorScore || 0) * 2;
+                return bScore - aScore;
+            });
+        }
+
+        const relevantResults = scoredResults.filter(result => {
+            const nlpScore = result.nlp_score || 0;
+            const matchPercentage = result.match_percentage || 0;
+            const vectorScore = result.vectorScore || 0;
+
+            if (result.wasCategorySearch) {
+
+                return nlpScore >= 1.0 || matchPercentage >= 0.1 || vectorScore >= 0.5 || true; 
+            }
+
+            return nlpScore >= 10 || matchPercentage >= 0.3 || vectorScore >= 2.0;
+        });
+        
+        console.log(`Filtered from ${scoredResults.length} to ${relevantResults.length} relevant results`);
+
+        let finalResults = relevantResults;
+        let isFallback = false;
+        
+        if (relevantResults.length === 0 && scoredResults.length > 0) {
+            console.log('No results passed relevance filter, using fallback: top 15 highest-scored products');
+
+            const fallbackResults = scoredResults
+                .sort((a, b) => {
+                    
+                    const aScore = (a.nlp_score || 0) + (a.vectorScore || 0) * 2 + (a.match_percentage || 0) * 10;
+                    const bScore = (b.nlp_score || 0) + (b.vectorScore || 0) * 2 + (b.match_percentage || 0) * 10;
+                    return bScore - aScore;
+                })
+                .slice(0, 15)
+                .map(product => ({
+                    ...product,
+                    isFallbackResult: true
+                }));
+            
+            finalResults = fallbackResults;
+            isFallback = true;
+            console.log(`Fallback: showing top ${finalResults.length} highest-scored products`);
+        }
+        
+        return {
+            products: finalResults,
+            searchMethods: searchMethods,
+            totalResults: finalResults.length,
+            isFallback: isFallback
+        };
+    }
+
+    async performVectorSearch(query, limit) {
+        try {
+            const vectorResults = await vectorService.searchSimilar(query, limit, 0.001);
+            console.log(`Vector service returned ${vectorResults.length} results`);
+            
+            if (vectorResults.length === 0) return [];
+
+            const mongoClient = getMongoClient();
+            if (!mongoClient) {
+                
+                return vectorResults.map(result => ({
+                    _id: result.productId,
+                    name: result.metadata.name || result.metadata.title,
+                    title: result.metadata.title,
+                    category: result.metadata.category,
+                    subcategory: result.metadata.subcategory,
+                    brand: result.metadata.brand,
+                    price: result.metadata.price,
+                    averageRating: result.metadata.averageRating || result.metadata.rating,
+                    totalReviews: result.metadata.totalReviews,
+                    searchType: 'vector',
+                    similarity: result.similarity,
+                    vectorScore: Math.min(result.similarity * 3, 3)
+                }));
+            }
+
+            const db = mongoClient.db('ecommerce');
+            const collection = db.collection('products');
+            
+            const productIds = vectorResults.map(r => {
+                try {
+                    const { ObjectId } = require('mongodb');
+                    return new ObjectId(r.productId);
+                } catch (e) {
+                    return r.productId;
+                }
+            });
+
+            console.log(`Looking for MongoDB products with IDs:`, productIds.slice(0, 3));
+            console.log(`Sample vector IDs:`, vectorResults.slice(0, 3).map(r => r.productId));
+            const products = await collection.find({ _id: { $in: productIds } }).toArray();
+            console.log(`Found ${products.length} matching products in MongoDB`);
+            if (products.length > 0) {
+                console.log(`Found product IDs:`, products.slice(0, 3).map(p => p._id.toString()));
+            }
+
+            return products.map(product => {
+                const vectorResult = vectorResults.find(r => r.productId === product._id.toString());
+                return {
+                    ...product,
+                    searchType: 'vector',
+                    similarity: vectorResult ? vectorResult.similarity : 0,
+                    vectorScore: vectorResult ? Math.min(vectorResult.similarity * 3, 3) : 0,
+                    baseSimilarity: vectorResult ? vectorResult.baseSimilarity : 0,
+                    keywordBonus: vectorResult ? vectorResult.keywordBonus : 0
+                };
+            }).sort((a, b) => b.vectorScore - a.vectorScore);
+
+        } catch (error) {
+            console.error('Vector search error:', error);
+            return [];
+        }
+    }
+
+    mergeSearchResults(allResults) {
+        const resultMap = new Map();
+
+        allResults.forEach(product => {
+            const id = product._id?.toString() || product.id?.toString();
+            
+            if (resultMap.has(id)) {
+                const existing = resultMap.get(id);
+                existing.searchTypes = existing.searchTypes || [existing.searchType];
+                if (!existing.searchTypes.includes(product.searchType)) {
+                    existing.searchTypes.push(product.searchType);
+                }
+                
+                const vectorBoost = product.vectorScore || 0;
+                const elasticBoost = product.elasticScore || 0;
+                const mongoBoost = product.mongoScore || 0;
+                
+                existing.combinedScore = Math.max(
+                    existing.combinedScore || 0,
+                    vectorBoost + elasticBoost + mongoBoost
+                );
+                
+                if (product.similarity) existing.similarity = Math.max(existing.similarity || 0, product.similarity);
+                if (product._score) existing._score = Math.max(existing._score || 0, product._score);
+                
+                if (vectorBoost > 0 && elasticBoost > 0) {
+                    existing.combinedScore += 0.5;
+                }
+            } else {
+                resultMap.set(id, {
+                    ...product,
+                    searchTypes: [product.searchType],
+                    combinedScore: (product.vectorScore || 0) + (product.elasticScore || 0) + (product.mongoScore || 0)
+                });
+            }
+        });
+
+        return Array.from(resultMap.values())
+            .sort((a, b) => (b.combinedScore || 0) - (a.combinedScore || 0))
+            .slice(0, 60);
     }
 
     async searchWithElasticsearch(esClient, query, filters) {
+        
+        try {
+            const countResponse = await esClient.count({ index: 'products' });
+            const docCount = countResponse.body?.count || countResponse.count || 0;
+            if (docCount === 0) {
+                console.log('Elasticsearch index is empty, skipping ES search');
+                return [];
+            }
+        } catch (error) {
+            console.log('Could not check Elasticsearch index, proceeding with search');
+        }
+        
         const shouldClauses = [];
         const filterClauses = [];
 
         const multiMatch = {
             multi_match: {
                 query: query,
-                fields: ["title^3", "description^2", "category^2", "brand^2", "tags"],
+                fields: [
+                    "name^3", 
+                    "title^3", 
+                    "description^2", 
+                    "category^2", 
+                    "subcategory^2.5", 
+                    "brand^2", 
+                    "tags^2", 
+                    "features^1.5"
+                ],
                 fuzziness: "AUTO",
                 type: "best_fields"
             }
@@ -43,7 +371,16 @@ class SearchService {
                 shouldClauses.push({
                     multi_match: {
                         query: keyword,
-                        fields: ["title^3", "description", "category", "brand", "tags"],
+                        fields: [
+                            "name^3", 
+                            "title^3", 
+                            "description^2", 
+                            "category^2", 
+                            "subcategory^2.5", 
+                            "brand^2", 
+                            "tags^2", 
+                            "features^1.5"
+                        ],
                         fuzziness: "AUTO"
                     }
                 });
@@ -60,20 +397,6 @@ class SearchService {
                         term: {
                             "brand.keyword": {
                                 value: brand,
-                                boost: boostValue
-                            }
-                        }
-                    });
-                }
-            }
-
-            if (semantic.color_confidence) {
-                for (const [color, confidence] of Object.entries(semantic.color_confidence)) {
-                    const boostValue = Math.min(confidence * 1.8, 4.0);
-                    shouldClauses.push({
-                        term: {
-                            "color.keyword": {
-                                value: color,
                                 boost: boostValue
                             }
                         }
@@ -131,25 +454,10 @@ class SearchService {
                     }
                 });
             }
-
-            if (filters.color) {
-                shouldClauses.push({
-                    term: {
-                        "color.keyword": {
-                            value: filters.color,
-                            boost: 1.5
-                        }
-                    }
-                });
-            }
         }
 
         if (filters.brand) {
             filterClauses.push({ term: { "brand.keyword": filters.brand } });
-        }
-
-        if (filters.color) {
-            filterClauses.push({ term: { "color.keyword": filters.color } });
         }
 
         if (filters.category) {
@@ -203,7 +511,7 @@ class SearchService {
         }
 
         if (filters.rating_min) {
-            filterClauses.push({ range: { rating: { gte: filters.rating_min } } });
+            filterClauses.push({ range: { averageRating: { gte: filters.rating_min } } });
         }
 
         let esQuery;
@@ -218,10 +526,9 @@ class SearchService {
                 },
                 sort: [
                     { "_score": { order: "desc" } },
-                    { "rating": { order: "desc" } },
-                    { "price": { order: "asc" } }
+                    { "price": { order: "asc", "missing": "_last" } }
                 ],
-                size: 50
+                size: 60
             };
         } else {
             esQuery = {
@@ -233,15 +540,14 @@ class SearchService {
                 },
                 sort: [
                     { "_score": { order: "desc" } },
-                    { "rating": { order: "desc" } },
-                    { "price": { order: "asc" } }
+                    { "price": { order: "asc", "missing": "_last" } }
                 ],
-                size: 50
+                size: 60
             };
         }
 
         let response = await esClient.search({
-            index: 'ecommerce',
+            index: 'products',
             body: esQuery
         });
 
@@ -258,7 +564,16 @@ class SearchService {
                             {
                                 multi_match: {
                                     query: query,
-                                    fields: ["title^3", "description^2", "category^2", "brand^2", "tags"],
+                                    fields: [
+                                        "name^3", 
+                                        "title^3", 
+                                        "description^2", 
+                                        "category^2", 
+                                        "subcategory^2.5", 
+                                        "brand^2", 
+                                        "tags^2", 
+                                        "features^1.5"
+                                    ],
                                     fuzziness: "AUTO",
                                     type: "best_fields"
                                 }
@@ -269,10 +584,9 @@ class SearchService {
                 },
                 sort: [
                     { "_score": { order: "desc" } },
-                    { "rating": { order: "desc" } },
-                    { "price": { order: "asc" } }
+                    { "price": { order: "asc", "missing": "_last" } }
                 ],
-                size: 50
+                size: 60
             };
 
             if (filters.brand) {
@@ -321,83 +635,256 @@ class SearchService {
         const db = mongoClient.db('ecommerce');
         const collection = db.collection('products');
 
-        const mongoQuery = { $and: [] };
-        
-        const shoeIndicators = ['shoes', 'shoe', 'footwear', 'sneakers', 'boots', 'sandals', 'heels', 'flats'];
-        const electronicsIndicators = ['phone', 'mobile', 'smartphone', 'tablet', 'laptop', 'electronic', 'device', 'gadget'];
-        const clothingIndicators = ['shirt', 'pant', 'dress', 'jacket', 'clothing', 'apparel', 'wear'];
-        
-        const isShoeQuery = shoeIndicators.some(indicator => query.toLowerCase().includes(indicator));
-        const isElectronicsQuery = electronicsIndicators.some(indicator => query.toLowerCase().includes(indicator));
-        const isClothingQuery = clothingIndicators.some(indicator => query.toLowerCase().includes(indicator));
-        
-        if (isShoeQuery || filters.category === 'footwear') {
-            const footwearCategories = ['sneakers', 'running shoes', 'basketball shoes', 'tennis shoes', 'athletic shoes',
-                'casual shoes', 'formal shoes', 'dress shoes', 'boots', 'ankle boots', 'hiking boots',
-                'sandals', 'flip flops', 'heels', 'high heels', 'flats', 'loafers', 'oxfords', 'shoes', 'footwear'];
+        console.log('MongoDB search query:', query);
+
+        let mongoQuery = {};
+        let products = [];
+
+        try {
             
-            mongoQuery.$and.push({
-                $or: [
-                    ...footwearCategories.map(cat => ({ category: { $regex: cat, $options: 'i' } })),
-                    { title: { $regex: 'shoes|sneaker|boot|sandal|heel|flat|footwear', $options: 'i' } },
-                    { tags: { $in: [/shoes/i, /sneaker/i, /boot/i, /sandal/i, /heel/i, /flat/i, /footwear/i] } }
-                ]
-            });
-        } 
-        else if (isElectronicsQuery || filters.category === 'mobile phones') {
-            const electronicsCategories = ['mobile phones', 'smartphones', 'tablets', 'laptops', 'headphones', 'smartwatches'];
-            const electronicsKeywords = ['mobile', 'phone', 'smartphone', 'tablet', 'laptop', 'computer', 'electronic', 'headphone', 'earphone', 'watch'];
+            mongoQuery = { $text: { $search: query } };
+
+            const filterConditions = [];
             
-            mongoQuery.$and.push({
+            if (filters.brand) {
+                filterConditions.push({ brand: { $regex: filters.brand, $options: 'i' } });
+            }
+
+            if (filters.gender) {
+                filterConditions.push({ gender: { $regex: filters.gender, $options: 'i' } });
+            }
+
+            if (filters.season) {
+                filterConditions.push({ season: { $regex: filters.season, $options: 'i' } });
+            }
+
+            if (filters.category) {
+                filterConditions.push({
+                    $or: [
+                        { category: { $regex: filters.category, $options: 'i' } },
+                        { subcategory: { $regex: filters.category, $options: 'i' } }
+                    ]
+                });
+            }
+
+            if (filters.price_max) {
+                filterConditions.push({ price: { $lte: filters.price_max } });
+            }
+
+            if (filters.price_min) {
+                filterConditions.push({ price: { $gte: filters.price_min } });
+            }
+
+            if (filters.rating_min) {
+                filterConditions.push({ averageRating: { $gte: filters.rating_min } });
+            }
+
+            if (filterConditions.length > 0) {
+                mongoQuery = {
+                    $and: [
+                        { $text: { $search: query } },
+                        ...filterConditions
+                    ]
+                };
+            }
+
+            console.log('MongoDB text search query:', JSON.stringify(mongoQuery, null, 2));
+
+            products = await collection.find(mongoQuery)
+                .sort({ 
+                    score: { $meta: "textScore" },
+                    averageRating: -1, 
+                    totalReviews: -1, 
+                    createdAt: -1  
+                })
+                .limit(60)
+                .toArray();
+
+            console.log(`MongoDB text search found ${products.length} products`);
+
+        } catch (textSearchError) {
+            console.log('Text search failed, trying regex search:', textSearchError.message);
+
+            const regexQuery = {
                 $or: [
-                    ...electronicsCategories.map(cat => ({ category: { $regex: cat, $options: 'i' } })),
-                    ...electronicsKeywords.map(keyword => ({ title: { $regex: keyword, $options: 'i' } }))
+                    { name: { $regex: query, $options: 'i' } },
+                    { title: { $regex: query, $options: 'i' } },
+                    { description: { $regex: query, $options: 'i' } },
+                    { category: { $regex: query, $options: 'i' } },
+                    { subcategory: { $regex: query, $options: 'i' } },
+                    { brand: { $regex: query, $options: 'i' } },
+                    { tags: { $in: [new RegExp(query, 'i')] } },
+                    { features: { $in: [new RegExp(query, 'i')] } }
                 ]
-            });
-        }
-        else if (filters.category && filters.category !== 'footwear') {
-            mongoQuery.$and.push({
-                $or: [
-                    { category: { $regex: filters.category, $options: 'i' } },
-                    { title: { $regex: filters.category, $options: 'i' } }
-                ]
-            });
+            };
+
+            const filterConditions = [];
+            
+            if (filters.brand) {
+                filterConditions.push({ brand: { $regex: filters.brand, $options: 'i' } });
+            }
+
+            if (filters.gender) {
+                filterConditions.push({ gender: { $regex: filters.gender, $options: 'i' } });
+            }
+
+            if (filters.season) {
+                filterConditions.push({ season: { $regex: filters.season, $options: 'i' } });
+            }
+
+            if (filters.category) {
+                filterConditions.push({
+                    $or: [
+                        { category: { $regex: filters.category, $options: 'i' } },
+                        { subcategory: { $regex: filters.category, $options: 'i' } }
+                    ]
+                });
+            }
+
+            if (filters.price_max) {
+                filterConditions.push({ price: { $lte: filters.price_max } });
+            }
+
+            if (filters.price_min) {
+                filterConditions.push({ price: { $gte: filters.price_min } });
+            }
+
+            if (filters.rating_min) {
+                filterConditions.push({ averageRating: { $gte: filters.rating_min } });
+            }
+
+            if (filterConditions.length > 0) {
+                mongoQuery = {
+                    $and: [
+                        regexQuery,
+                        ...filterConditions
+                    ]
+                };
+            } else {
+                mongoQuery = regexQuery;
+            }
+
+            console.log('MongoDB regex search query:', JSON.stringify(mongoQuery, null, 2));
+
+            products = await collection.find(mongoQuery)
+                .sort({ 
+                    averageRating: -1, 
+                    totalReviews: -1, 
+                    createdAt: -1,  
+                    price: 1 
+                })
+                .limit(60)
+                .toArray();
+
+            console.log(`MongoDB regex search found ${products.length} products`);
         }
 
-        if (filters.brand) {
-            mongoQuery.$and.push({ brand: { $regex: filters.brand, $options: 'i' } });
+        if (products.length === 0) {
+            console.log('Trying category-based search as last resort...');
+            
+            const categoryMappings = {
+                'accessories': ['accessories'],
+                'backpack': ['backpacks', 'luggage'],
+                'bag': ['backpacks', 'handbags', 'luggage'],
+                'laptop': ['laptops', 'electronics'],
+                'phone': ['smartphones', 'electronics'],
+                'smartphone': ['smartphones', 'electronics'],
+                'shoes': ['shoes', 'footwear', 'fashion'],
+                'clothing': ['fashion'],
+                'clothes': ['fashion'],
+                'electronics': ['electronics'],
+                'fashion': ['fashion'],
+                'wildcraft': [] 
+            };
+
+            const queryLower = query.toLowerCase();
+            let categoryQuery = null;
+
+            for (const [keyword, categories] of Object.entries(categoryMappings)) {
+                if (queryLower.includes(keyword)) {
+                    if (categories.length > 0) {
+                        categoryQuery = {
+                            $or: [
+                                ...categories.map(cat => ({ category: { $regex: cat, $options: 'i' } })),
+                                ...categories.map(cat => ({ subcategory: { $regex: cat, $options: 'i' } }))
+                            ]
+                        };
+                    } else {
+                        
+                        categoryQuery = { brand: { $regex: keyword, $options: 'i' } };
+                    }
+                    break;
+                }
+            }
+
+            if (categoryQuery) {
+                console.log('MongoDB category search query:', JSON.stringify(categoryQuery, null, 2));
+
+                let finalCategoryQuery = categoryQuery;
+                const additionalFilters = [];
+                
+                if (filters.price_min) {
+                    additionalFilters.push({ price: { $gte: filters.price_min } });
+                }
+                
+                if (filters.price_max) {
+                    additionalFilters.push({ price: { $lte: filters.price_max } });
+                }
+                
+                if (filters.rating_min) {
+                    additionalFilters.push({ averageRating: { $gte: filters.rating_min } });
+                }
+                
+                if (additionalFilters.length > 0) {
+                    finalCategoryQuery = {
+                        $and: [
+                            categoryQuery,
+                            ...additionalFilters
+                        ]
+                    };
+                    console.log('Applied additional filters to category search:', JSON.stringify(additionalFilters, null, 2));
+                }
+                
+                products = await collection.find(finalCategoryQuery)
+                    .sort({ 
+                        averageRating: -1, 
+                        totalReviews: -1, 
+                        createdAt: -1,  
+                        price: 1 
+                    })
+                    .limit(60)
+                    .toArray();
+
+                console.log(`MongoDB category search found ${products.length} products`);
+                return { products: products, wasCategorySearch: true };
+            }
         }
 
-        if (filters.color) {
-            mongoQuery.$and.push({ color: { $regex: filters.color, $options: 'i' } });
+        return { products: products, wasCategorySearch: false };
+    }
+
+    async getFallbackProducts(mongoClient, query) {
+        const db = mongoClient.db('ecommerce');
+        const collection = db.collection('products');
+
+        console.log('Getting fallback products with broad search criteria');
+        
+        try {
+            
+            const fallbackProducts = await collection.find({})
+                .sort({ 
+                    averageRating: -1, 
+                    totalReviews: -1,
+                    createdAt: -1
+                })
+                .limit(15)
+                .toArray();
+
+            return fallbackProducts;
+        } catch (error) {
+            console.error('Error in getFallbackProducts:', error);
+            return [];
         }
-
-        if (filters.gender) {
-            mongoQuery.$and.push({ gender: { $regex: filters.gender, $options: 'i' } });
-        }
-
-        if (filters.price_max) {
-            mongoQuery.$and.push({ price: { $lte: filters.price_max } });
-        }
-
-        if (filters.price_min) {
-            mongoQuery.$and.push({ price: { $gte: filters.price_min } });
-        }
-
-        if (filters.rating_min) {
-            mongoQuery.$and.push({ rating: { $gte: filters.rating_min } });
-        }
-
-        if (mongoQuery.$and.length === 0) {
-            delete mongoQuery.$and;
-            mongoQuery.$text = { $search: query };
-        } else {
-            mongoQuery.$and.push({ $text: { $search: query } });
-        }
-
-        const products = await collection.find(mongoQuery).toArray();
-
-        return products;
     }
 }
 

@@ -6,74 +6,97 @@ function applyNLPScoring(products, filters, originalQuery) {
     const semantic = filters.semantic_analysis || {};
     const queryLower = originalQuery.toLowerCase();
     const queryWords = queryLower.split(/\s+/).filter(word => word.length > 2);
+
+    const categoryMappings = {
+        shoes: ['Footwear', 'Casual Shoes', 'Sports Shoes', 'Formal Shoes', 'Sneakers'],
+        electronics: ['Electronics', 'Mobiles & Accessories', 'Laptops & Accessories', 'Audio'],
+        fashion: ['Fashion', 'Men', 'Women', 'Kids'],
+        beauty: ['Beauty & Personal Care', 'Makeup', 'Skincare', 'Haircare'],
+        home: ['Home & Kitchen', 'Furniture', 'Home Decor', 'Kitchen & Dining'],
+        appliances: ['Appliances', 'Large Appliances', 'Small Appliances'],
+        books: ['Books & Stationery', 'Academic Books', 'Novels'],
+        sports: ['Sports & Outdoors', 'Cricket', 'Footballs', 'Bicycles'],
+        baby: ['Baby & Kids', 'Baby Clothing', 'Toys'],
+        automotive: ['Automotive', 'Car Accessories', 'Bike Accessories']
+    };
     
-    const shoeCategories = [
-        'sneakers', 'running shoes', 'basketball shoes', 'tennis shoes', 'athletic shoes',
-        'casual shoes', 'formal shoes', 'dress shoes', 'boots', 'ankle boots', 'hiking boots',
-        'sandals', 'flip flops', 'heels', 'high heels', 'flats', 'loafers', 'oxfords'
-    ];
-    
-    const electronicsCategories = [
-        'mobile phones', 'smartphones', 'phones', 'tablets', 'laptops', 'headphones', 
-        'smartwatches', 'electronics', 'gadgets', 'devices'
-    ];
-    
-    const clothingCategories = [
-        'clothing', 'shirts', 't-shirts', 'pants', 'jeans', 'dresses', 'jackets', 'apparel',
-        'tops', 'bottoms', 'outerwear', 'activewear', 'sleepwear', 'underwear'
-    ];
-    
-    const shoeIndicators = ['shoes', 'shoe', 'footwear', 'sneakers', 'boots', 'sandals', 'heels', 'flats'];
-    const electronicsIndicators = ['phone', 'mobile', 'smartphone', 'tablet', 'laptop', 'electronic', 'device', 'gadget'];
-    const clothingIndicators = ['shirt', 't-shirt', 'tshirt', 'pant', 'dress', 'jacket', 'clothing', 'apparel', 'wear', 'top', 'bottom', 'polo', 'blouse', 'hoodie', 'sweater', 'jean'];
-    
-    const isShoeQuery = shoeIndicators.some(indicator => queryLower.includes(indicator));
-    const isElectronicsQuery = electronicsIndicators.some(indicator => queryLower.includes(indicator));
-    const isClothingQuery = clothingIndicators.some(indicator => queryLower.includes(indicator));
+    const productTypeDetectors = {
+        shoes: ['shoes', 'shoe', 'footwear', 'sneakers', 'boots', 'sandals', 'heels', 'flats'],
+        electronics: ['phone', 'mobile', 'smartphone', 'tablet', 'laptop', 'electronic', 'device', 'gadget', 'headphone'],
+        fashion: ['shirt', 't-shirt', 'tshirt', 'pant', 'dress', 'jacket', 'clothing', 'apparel', 'jeans', 'kurti', 'saree'],
+        beauty: ['makeup', 'foundation', 'lipstick', 'shampoo', 'perfume', 'skincare'],
+        home: ['furniture', 'sofa', 'bed', 'table', 'lamp', 'cookware'],
+        appliances: ['refrigerator', 'microwave', 'washing', 'iron', 'vacuum'],
+        books: ['book', 'novel', 'notebook', 'academic'],
+        sports: ['cricket', 'football', 'bicycle', 'yoga', 'sports'],
+        baby: ['baby', 'diaper', 'toy', 'kids'],
+        automotive: ['car', 'bike', 'auto', 'vehicle']
+    };
+
+    let detectedTypes = [];
+    for (const [type, indicators] of Object.entries(productTypeDetectors)) {
+        if (indicators.some(indicator => queryLower.includes(indicator))) {
+            detectedTypes.push(type);
+        }
+    }
     
     for (const product of products) {
         let nlpScore = product._score || 1.0;
         const productCategory = (product.category || '').toLowerCase();
+        const productSubcategory = (product.subcategory || '').toLowerCase();
         const productTitle = (product.title || '').toLowerCase();
+        const productName = (product.name || '').toLowerCase();
         const productDescription = (product.description || '').toLowerCase();
         const productTags = (product.tags || []).map(tag => tag.toLowerCase());
+        const productFeatures = (product.features || []).map(feature => feature.toLowerCase());
         const productBrand = (product.brand || '').toLowerCase();
-        const productColor = (product.color || '').toLowerCase();
+        const productGender = (product.gender || '').toLowerCase();
+        const productSeason = (product.season || '').toLowerCase();
         
         let keywordMatchScore = 0;
         let totalQueryWords = queryWords.length;
         let matchedWords = 0;
-        
+
         for (const word of queryWords) {
             let wordMatched = false;
-            
-            if (productTitle.includes(word)) {
+
+            if (productName.includes(word) || productTitle.includes(word)) {
+                keywordMatchScore += 3.5;
+                wordMatched = true;
+            }
+
+            if (productSubcategory.includes(word)) {
                 keywordMatchScore += 3.0;
                 wordMatched = true;
             }
             
+            if (productFeatures.some(feature => feature.includes(word) || word.includes(feature))) {
+                keywordMatchScore += 2.8;
+                wordMatched = true;
+            }
+
             if (productTags.some(tag => tag.includes(word) || word.includes(tag))) {
                 keywordMatchScore += 2.5;
                 wordMatched = true;
             }
             
-            if (productDescription.includes(word)) {
-                keywordMatchScore += 2.0;
-                wordMatched = true;
-            }
-            
             if (productBrand.includes(word) || word.includes(productBrand)) {
+                keywordMatchScore += 2.3;
+                wordMatched = true;
+            }
+
+            if (productCategory.includes(word) || word.includes(productCategory)) {
                 keywordMatchScore += 2.0;
                 wordMatched = true;
             }
             
-            if (productCategory.includes(word) || word.includes(productCategory)) {
-                keywordMatchScore += 1.5;
+            if (productDescription.includes(word)) {
+                keywordMatchScore += 1.8;
                 wordMatched = true;
             }
-            
-            if (productColor.includes(word) || word.includes(productColor)) {
-                keywordMatchScore += 1.5;
+
+            if (productGender.includes(word) || productSeason.includes(word)) {
+                keywordMatchScore += 1.0;
                 wordMatched = true;
             }
             
@@ -85,64 +108,44 @@ function applyNLPScoring(products, filters, originalQuery) {
         const matchPercentage = totalQueryWords > 0 ? (matchedWords / totalQueryWords) : 0;
         
         nlpScore += keywordMatchScore;
-        
+
         if (matchPercentage >= 0.8) {
-            nlpScore *= 1.5; 
+            nlpScore *= 1.6; 
         } else if (matchPercentage >= 0.5) {
-            nlpScore *= 1.2; 
+            nlpScore *= 1.3; 
         }
-        
-        if (isShoeQuery) {
-            const isShoeProduct = shoeCategories.some(cat => 
+
+        for (const detectedType of detectedTypes) {
+            const relevantCategories = categoryMappings[detectedType] || [];
+            const isRelevantProduct = relevantCategories.some(cat => 
                 productCategory.includes(cat.toLowerCase()) || 
+                productSubcategory.includes(cat.toLowerCase()) ||
                 cat.toLowerCase().includes(productCategory) ||
-                productTitle.includes('shoe') ||
-                productTitle.includes('sneaker') ||
-                productTitle.includes('boot') ||
-                productTags.some(tag => ['shoes', 'sneakers', 'boots', 'footwear'].includes(tag))
+                cat.toLowerCase().includes(productSubcategory)
             );
             
-            if (isShoeProduct) {
-                nlpScore *= 1.3; 
-            } else {
-                nlpScore *= 0.3; 
+            if (isRelevantProduct) {
+                nlpScore *= 1.4;
             }
-        } else if (isElectronicsQuery) {
-            const isElectronicsProduct = electronicsCategories.some(cat => 
-                productCategory.includes(cat.toLowerCase()) || 
-                cat.toLowerCase().includes(productCategory) ||
-                productCategory.includes('phone') || productCategory.includes('mobile') ||
-                productCategory.includes('tablet') || productCategory.includes('laptop') ||
-                productTitle.includes('phone') ||
-                productTitle.includes('mobile') ||
-                productTitle.includes('smartphone') ||
-                productTags.some(tag => ['android', 'ios', 'mobile', 'phone', 'smartphone', 'electronic', 'gadget'].includes(tag))
-            );
-            
-            if (isElectronicsProduct) {
-                nlpScore *= 1.3; 
-            } else {
-                nlpScore *= 0.3; 
-            }
-        } else if (isClothingQuery) {
-            const isClothingProduct = clothingCategories.some(cat => 
-                productCategory.includes(cat.toLowerCase()) || 
-                cat.toLowerCase().includes(productCategory) ||
-                productTitle.includes('shirt') ||
-                productTitle.includes('t-shirt') ||
-                productTitle.includes('dress') ||
-                productTitle.includes('pant') ||
-                productTitle.includes('jean') ||
-                productTitle.includes('jacket') ||
-                productTitle.includes('hoodie') ||
-                productTags.some(tag => ['clothing', 'apparel', 'shirt', 'dress', 'pant', 'jean', 'jacket', 'top', 'bottom'].includes(tag))
-            );
-            
-            if (isClothingProduct) {
-                nlpScore *= 1.3; 
-            } else {
-                nlpScore *= 0.3; 
-            }
+        }
+
+        const averageRating = product.averageRating || 0;
+        const totalReviews = product.totalReviews || 0;
+
+        if (averageRating >= 4.5) {
+            nlpScore *= 1.3;
+        } else if (averageRating >= 4.0) {
+            nlpScore *= 1.2;
+        } else if (averageRating >= 3.5) {
+            nlpScore *= 1.1;
+        }
+
+        if (totalReviews >= 100) {
+            nlpScore *= 1.2;
+        } else if (totalReviews >= 50) {
+            nlpScore *= 1.1;
+        } else if (totalReviews >= 20) {
+            nlpScore *= 1.05;
         }
 
         if (filters.brand) {
@@ -151,17 +154,6 @@ function applyNLPScoring(products, filters, originalQuery) {
             if (productBrand === targetBrand || productBrand.includes(targetBrand) || targetBrand.includes(productBrand)) {
                 const brandConfidence = semantic.brand_confidence?.[targetBrand] || 1.0;
                 nlpScore += brandConfidence * 1.5; 
-            } else {
-                nlpScore *= 0.8; 
-            }
-        }
-
-        if (filters.color) {
-            const targetColor = filters.color.toLowerCase();
-
-            if (productColor === targetColor || productColor.includes(targetColor) || targetColor.includes(productColor)) {
-                const colorConfidence = semantic.color_confidence?.[targetColor] || 1.0;
-                nlpScore += colorConfidence * 1.5;
             } else {
                 nlpScore *= 0.8; 
             }

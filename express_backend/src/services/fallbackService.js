@@ -41,6 +41,8 @@ function parseQueryFallback(queryLower) {
         "vans": ["vans"],
         "new balance": ["new balance", "nb"],
         "skechers": ["skechers"],
+        "wildcraft": ["wildcraft"],
+        "bata": ["bata"],
         
         "apple": ["apple", "iphone", "ipad", "macbook"],
         "samsung": ["samsung", "galaxy"],

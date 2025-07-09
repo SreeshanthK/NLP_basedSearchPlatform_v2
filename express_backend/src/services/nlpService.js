@@ -204,7 +204,7 @@ function parseQueryWithNLP(query) {
     };
 
     const categoryEntities = {
-        "clothing": ["shirt", "t-shirt", "t shirt", "tshirt", "polo", "blouse", "top", "dress", "pant", "pants", "jean", "jeans", "trouser", "short", "shorts", "jacket", "coat", "hoodie", "sweatshirt", "sweater", "skirt", "clothing", "apparel", "wear"],
+        "clothing": ["shirt", "t-shirt", "t shirt", "tshirt", "polo", "blouse", "top", "dress", "pant", "pants", "jean", "jeans", "trouser", "short", "shorts", "jacket", "coat", "hoodie", "sweatshirt", "sweater", "skirt", "clothing", "clothes", "apparel", "wear"],
         "footwear": ["shoes", "footwear", "sneakers", "boots", "sandals", "heels", "flats", "running shoes", "athletic shoes", "shoe", "sneaker"],
         "mobile phones": ["smartphone", "phone", "mobile", "iphone", "android", "cell phone", "cellular"],
         "laptops": ["laptop", "notebook", "computer", "pc"],
@@ -353,7 +353,20 @@ function parseQueryWithNLP(query) {
     return filters;
 }
 
+function analyzeQuery(query) {
+    const analysis = parseQueryWithNLP(query);
+    return {
+        keywords: analysis.keywords || [],
+        categories: analysis.category ? [analysis.category] : [],
+        brands: analysis.brand ? [analysis.brand] : [],
+        sentiment: { score: 0.5 },
+        intent: analysis.intent || 'general',
+        filters: analysis
+    };
+}
+
 module.exports = {
     parseQueryIntelligently,
-    parseQueryWithNLP
+    parseQueryWithNLP,
+    analyzeQuery
 };
