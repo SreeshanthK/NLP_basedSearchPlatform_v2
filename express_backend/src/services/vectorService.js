@@ -125,22 +125,43 @@ class VectorSearchService {
         }
 
         try {
-            const searchableText = `${product.title || ''} ${product.description || ''} ${product.category || ''} ${product.brand || ''} ${(product.tags || []).join(' ')}`;
+            // Create searchable text with new schema fields
+            const searchableText = [
+                product.name || '',
+                product.title || '',
+                product.description || '',
+                product.category || '',
+                product.subcategory || '',
+                product.brand || '',
+                product.gender || '',
+                product.season || '',
+                product.color || '',
+                (product.tags || []).join(' '),
+                (product.features || []).join(' ')
+            ].filter(Boolean).join(' ');
+            
             const vector = this.generateSmartVector(searchableText);
             
             this.productVectors.set(product._id.toString(), {
                 vector: vector,
                 metadata: {
+                    name: product.name,
                     title: product.title,
                     category: product.category,
+                    subcategory: product.subcategory,
                     brand: product.brand,
                     price: product.price,
-                    rating: product.rating
+                    gender: product.gender,
+                    season: product.season,
+                    color: product.color,
+                    averageRating: product.averageRating || 0,
+                    totalReviews: product.totalReviews || 0,
+                    stocks: product.stocks || 0
                 },
                 searchText: searchableText.toLowerCase()
             });
 
-            console.log(`Indexed product: ${product.title}`);
+            console.log(`Indexed product: ${product.name || product.title}`);
             return true;
         } catch (error) {
             console.error('Error indexing product:', error);

@@ -1,11 +1,13 @@
 function parseQueryFallback(queryLower) {
     const filters = {
         category: null,
+        subcategory: null,
         brand: null,
-        color: null,
         price_max: null,
         price_min: null,
         gender: null,
+        season: null,
+        rating_min: null,
         keywords: []
     };
 
@@ -13,23 +15,38 @@ function parseQueryFallback(queryLower) {
     filters.keywords = words;
 
     const categorySynonyms = {
-        "sneakers": ["sneakers", "trainers", "athletic shoes", "sports shoes", "running shoes"],
-        "flats": ["flats", "ballet flats", "loafers"],
-        "boots": ["boots", "ankle boots", "combat boots", "winter boots"],
-        "sandals": ["sandals", "flip flops", "slippers"],
-        "heels": ["heels", "high heels", "stilettos", "pumps"],
-        "casual shoes": ["casual", "everyday shoes", "walking shoes"],
-        "formal shoes": ["formal", "dress shoes", "office shoes", "oxfords"],
-        
-        "mobile phones": ["mobile phones", "smartphones", "phones", "cellphones", "mobiles"],
-        "tablets": ["tablets", "ipads"],
-        "laptops": ["laptops", "notebooks", "computers"],
-        "headphones": ["headphones", "earphones", "earbuds"],
-        
-        "shirts": ["shirts", "t-shirts", "tees", "blouses"],
-        "pants": ["pants", "trousers", "jeans"],
-        "dresses": ["dresses", "gowns"],
-        "jackets": ["jackets", "coats", "blazers"]
+        "footwear": {
+            main: ["footwear", "shoes", "boots", "sneakers", "sandals"],
+            subcategories: {
+                "sneakers": ["sneakers", "trainers", "athletic shoes", "sports shoes", "running shoes"],
+                "flats": ["flats", "ballet flats", "loafers"],
+                "boots": ["boots", "ankle boots", "combat boots", "winter boots"],
+                "sandals": ["sandals", "flip flops", "slippers"],
+                "heels": ["heels", "high heels", "stilettos", "pumps"],
+                "casual": ["casual shoes", "everyday shoes", "walking shoes"],
+                "formal": ["formal shoes", "dress shoes", "office shoes", "oxfords"]
+            }
+        },
+        "electronics": {
+            main: ["electronics", "gadgets", "devices"],
+            subcategories: {
+                "mobile": ["mobile phones", "smartphones", "phones", "cellphones", "mobiles"],
+                "tablets": ["tablets", "ipads"],
+                "laptops": ["laptops", "notebooks", "computers"],
+                "headphones": ["headphones", "earphones", "earbuds"],
+                "smartwatch": ["smartwatch", "fitness tracker", "wearable"]
+            }
+        },
+        "clothing": {
+            main: ["clothing", "apparel", "fashion"],
+            subcategories: {
+                "shirts": ["shirts", "t-shirts", "tees", "blouses"],
+                "pants": ["pants", "trousers", "jeans"],
+                "dresses": ["dresses", "gowns"],
+                "jackets": ["jackets", "coats", "blazers"],
+                "activewear": ["activewear", "gym wear", "sportswear"]
+            }
+        }
     };
 
     const brandSynonyms = {
@@ -79,16 +96,35 @@ function parseQueryFallback(queryLower) {
     };
 
     const genderSynonyms = {
-        "women": ["women", "female", "girls", "ladies"],
-        "men": ["men", "male", "boys", "guys"],
-        "unisex": ["unisex", "both", "all"]
+        "women": ["women", "female", "girls", "ladies", "womens"],
+        "men": ["men", "male", "boys", "guys", "mens"],
+        "unisex": ["unisex", "both", "all", "universal"]
     };
 
-    for (const [category, synonyms] of Object.entries(categorySynonyms)) {
-        if (synonyms.some(synonym => queryLower.includes(synonym))) {
-            filters.category = category;
+    const seasonSynonyms = {
+        "summer": ["summer", "hot", "beach", "vacation"],
+        "winter": ["winter", "cold", "snow", "warm"],
+        "spring": ["spring", "fresh", "light"],
+        "fall": ["fall", "autumn", "cool"],
+        "all-season": ["all season", "year round", "versatile"]
+    };
+
+    for (const [mainCategory, categoryData] of Object.entries(categorySynonyms)) {
+      
+        if (categoryData.main.some(synonym => queryLower.includes(synonym))) {
+            filters.category = mainCategory;
             break;
         }
+        
+        for (const [subcat, synonyms] of Object.entries(categoryData.subcategories || {})) {
+            if (synonyms.some(synonym => queryLower.includes(synonym))) {
+                filters.category = mainCategory;
+                filters.subcategory = subcat;
+                break;
+            }
+        }
+        
+        if (filters.category) break;
     }
 
     for (const [brand, synonyms] of Object.entries(brandSynonyms)) {
@@ -98,16 +134,16 @@ function parseQueryFallback(queryLower) {
         }
     }
 
-    for (const [color, synonyms] of Object.entries(colorSynonyms)) {
+    for (const [gender, synonyms] of Object.entries(genderSynonyms)) {
         if (synonyms.some(synonym => queryLower.includes(synonym))) {
-            filters.color = color;
+            filters.gender = gender;
             break;
         }
     }
 
-    for (const [gender, synonyms] of Object.entries(genderSynonyms)) {
+    for (const [season, synonyms] of Object.entries(seasonSynonyms)) {
         if (synonyms.some(synonym => queryLower.includes(synonym))) {
-            filters.gender = gender;
+            filters.season = season;
             break;
         }
     }
@@ -133,6 +169,13 @@ function parseQueryFallback(queryLower) {
         /starting\s+from\s+(\d+)/
     ];
 
+    const ratingPatterns = [
+        /(\d+)\s*star/,
+        /rating\s+(\d+)/,
+        /rated\s+(\d+)/,
+        /(\d+)\s*\+\s*rating/
+    ];
+
     for (const pattern of underPatterns) {
         const match = queryLower.match(pattern);
         if (match) {
@@ -148,6 +191,14 @@ function parseQueryFallback(queryLower) {
                 filters.price_min = parseInt(match[1]);
                 break;
             }
+        }
+    }
+
+    for (const pattern of ratingPatterns) {
+        const match = queryLower.match(pattern);
+        if (match) {
+            filters.rating_min = parseInt(match[1]);
+            break;
         }
     }
 

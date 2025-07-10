@@ -2,7 +2,6 @@ const express = require('express');
 const cors = require('cors');
 const { initializeConnections } = require('./src/config/database');
 const searchRoutes = require('./src/routes/searchRoutes');
-const testRoutes = require('./src/routes/testRoutes');
 
 require('dotenv').config();
 
@@ -18,7 +17,6 @@ app.use(cors({
 }));
 
 app.use('/', searchRoutes);
-app.use('/', testRoutes);
 
 app.get('/health', (req, res) => {
     res.json({

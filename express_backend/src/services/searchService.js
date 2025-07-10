@@ -1,11 +1,23 @@
 const { getESClient, getMongoClient, initializeConnections } = require('../config/database');
 const { applyNLPScoring } = require('./scoringService');
+const { analyzeSemanticIntent, buildSemanticQuery, applySemanticScoring } = require('./semanticService');
+const { analyzeQueryWithNLP, calculateRelevanceScore } = require('../config/nlp');
 const vectorService = require('./vectorService');
 require('dotenv').config();
 
 class SearchService {
     async searchProducts(query, filters) {
         console.log('🔍 SearchService.searchProducts called with query:', query);
+
+
+        const semanticAnalysis = analyzeSemanticIntent(query);
+        const semanticQuery = buildSemanticQuery(query, semanticAnalysis);
+        
+        console.log('🧠 Semantic Analysis:', {
+            detectedIntents: semanticAnalysis.detectedIntents,
+            categoryPriorities: semanticAnalysis.categoryPriorities,
+            expandedTerms: semanticQuery.expandedTerms.slice(0, 5) 
+        });
 
         let esClient = getESClient();
         let mongoClient = getMongoClient();
@@ -27,7 +39,9 @@ class SearchService {
         if (process.env.VECTOR_SEARCH_ENABLED === 'true') {
             try {
                 console.log('Vector search is enabled, attempting vector search...');
-                const vectorResults = await this.performVectorSearch(query, 120);
+         
+                const searchQuery = semanticQuery.enhancedQuery || query;
+                const vectorResults = await this.performVectorSearch(searchQuery, 120);
                 console.log(`Vector search returned ${vectorResults.length} results`);
                 if (vectorResults.length > 0) {
                     
@@ -50,7 +64,7 @@ class SearchService {
 
         if (esClient) {
             try {
-                const products = await this.searchWithElasticsearch(esClient, query, filters);
+                const products = await this.searchWithElasticsearch(esClient, query, filters, semanticAnalysis);
                 if (products.length > 0) {
                     const elasticResults = products.map(product => ({
                         ...product,
@@ -67,17 +81,19 @@ class SearchService {
 
         if (mongoClient) {
             try {
-                const mongoResult = await this.searchWithMongoDB(mongoClient, query, filters);
+                const mongoResult = await this.searchWithMongoDB(mongoClient, query, filters, semanticAnalysis);
                 if (mongoResult.products.length > 0) {
+                    const mongoScore = semanticAnalysis.isColorSearch && mongoResult.wasCategorySearch ? 5.0 : 0.8;
+                    
                     const mongoResults = mongoResult.products.map(product => ({
                         ...product,
                         searchType: 'mongodb',
-                        mongoScore: 0.8,
+                        mongoScore: mongoScore,
                         wasCategorySearch: mongoResult.wasCategorySearch || false
                     }));
                     allResults = allResults.concat(mongoResults);
                     searchMethods.mongodb = true;
-                    console.log(`MongoDB search found ${mongoResults.length} results`);
+                    console.log(`MongoDB search found ${mongoResults.length} results with score ${mongoScore}`);
                 }
             } catch (error) {
                 console.error('MongoDB search failed:', error);
@@ -134,6 +150,26 @@ class SearchService {
         }
         
         const scoredResults = applyNLPScoring(filteredResults, filters, query);
+ 
+        const semanticallyScored = applySemanticScoring(scoredResults, semanticAnalysis);
+
+        if (semanticAnalysis.isColorSearch) {
+            const colorIntentMatches = semanticallyScored.filter(r => r.color_match && r.intent_match);
+            const intentMatches = semanticallyScored.filter(r => r.intent_match && !r.color_match);
+            const colorMatches = semanticallyScored.filter(r => r.color_match && !r.intent_match);
+            const others = semanticallyScored.filter(r => !r.color_match && !r.intent_match);
+            
+            [colorIntentMatches, intentMatches, colorMatches, others].forEach(group => {
+                group.sort((a, b) => {
+                    const aScore = (a.semantic_score || a.nlp_score || 0);
+                    const bScore = (b.semantic_score || b.nlp_score || 0);
+                    return bScore - aScore;
+                });
+            });
+            
+            semanticallyScored.splice(0, semanticallyScored.length, 
+                ...colorIntentMatches, ...intentMatches, ...colorMatches, ...others);
+        }
 
         const isPriceFocused = filters.price_min || filters.price_max || 
                              query.toLowerCase().includes('under') || 
@@ -146,7 +182,7 @@ class SearchService {
 
         if (isPriceFocused) {
             console.log('Price-focused query detected, sorting by price relevance');
-            scoredResults.sort((a, b) => {
+            semanticallyScored.sort((a, b) => {
                 
                 if (filters.price_min) {
                     const aValidPrice = a.price >= filters.price_min;
@@ -172,38 +208,68 @@ class SearchService {
                     }
                 }
 
-                const aScore = (a.nlp_score || 0) + (a.vectorScore || 0) * 2;
-                const bScore = (b.nlp_score || 0) + (b.vectorScore || 0) * 2;
+                const aScore = (a.semantic_score || a.nlp_score || 0) + (a.vectorScore || 0) * 2;
+                const bScore = (b.semantic_score || b.nlp_score || 0) + (b.vectorScore || 0) * 2;
+                return bScore - aScore;
+            });
+        } else {
+            semanticallyScored.sort((a, b) => {
+                const aColorIntent = a.color_match && a.intent_match;
+                const bColorIntent = b.color_match && b.intent_match;
+                
+                if (aColorIntent && !bColorIntent) return -1;
+                if (!aColorIntent && bColorIntent) return 1;
+                
+                if (a.intent_match && !b.intent_match) return -1;
+                if (!a.intent_match && b.intent_match) return 1;
+                
+                if (semanticAnalysis.isColorSearch) {
+                    if (a.color_match && !b.color_match) return -1;
+                    if (!a.color_match && b.color_match) return 1;
+                }
+                
+                const aScore = (a.semantic_score || a.nlp_score || 0) + (a.vectorScore || 0) * 0.5;
+                const bScore = (b.semantic_score || b.nlp_score || 0) + (b.vectorScore || 0) * 0.5;
                 return bScore - aScore;
             });
         }
 
-        const relevantResults = scoredResults.filter(result => {
-            const nlpScore = result.nlp_score || 0;
-            const matchPercentage = result.match_percentage || 0;
-            const vectorScore = result.vectorScore || 0;
-
-            if (result.wasCategorySearch) {
-
-                return nlpScore >= 1.0 || matchPercentage >= 0.1 || vectorScore >= 0.5 || true; 
-            }
-
-            return nlpScore >= 10 || matchPercentage >= 0.3 || vectorScore >= 2.0;
+        // --- NLP-based filtering and scoring ---
+        const nlpAnalysis = analyzeQueryWithNLP(query);
+        // Add a relevance score using NLP for each result
+        semanticallyScored.forEach(result => {
+            result.nlp_relevance_score = calculateRelevanceScore(result, nlpAnalysis, semanticAnalysis);
         });
+        // Sort by combined semantic and NLP relevance
+        semanticallyScored.sort((a, b) => {
+            const aScore = (a.semantic_score || 0) + (a.nlp_relevance_score || 0);
+            const bScore = (b.semantic_score || 0) + (b.nlp_relevance_score || 0);
+            return bScore - aScore;
+        });
+        // Smart threshold: keep all results with high relevance, then allow a soft drop-off
+        let threshold = Math.max(10, semanticallyScored[0]?.semantic_score || 0, semanticallyScored[0]?.nlp_relevance_score || 0) * 0.25;
+        const filteredSmart = semanticallyScored.filter((r, i) => {
+            // Always keep top 5, then filter by score
+            if (i < 5) return true;
+            const score = (r.semantic_score || 0) + (r.nlp_relevance_score || 0);
+            return score >= threshold;
+        });
+
+        const relevantResults = filteredSmart;
         
-        console.log(`Filtered from ${scoredResults.length} to ${relevantResults.length} relevant results`);
+        console.log(`Filtered from ${semanticallyScored.length} to ${relevantResults.length} relevant results`);
 
         let finalResults = relevantResults;
         let isFallback = false;
         
-        if (relevantResults.length === 0 && scoredResults.length > 0) {
+        if (relevantResults.length === 0 && semanticallyScored.length > 0) {
             console.log('No results passed relevance filter, using fallback: top 15 highest-scored products');
 
-            const fallbackResults = scoredResults
+            const fallbackResults = semanticallyScored
                 .sort((a, b) => {
                     
-                    const aScore = (a.nlp_score || 0) + (a.vectorScore || 0) * 2 + (a.match_percentage || 0) * 10;
-                    const bScore = (b.nlp_score || 0) + (b.vectorScore || 0) * 2 + (b.match_percentage || 0) * 10;
+                    const aScore = (a.semantic_score || a.nlp_score || 0) + (a.vectorScore || 0) * 2 + (a.match_percentage || 0) * 10;
+                    const bScore = (b.semantic_score || b.nlp_score || 0) + (b.vectorScore || 0) * 2 + (b.match_percentage || 0) * 10;
                     return bScore - aScore;
                 })
                 .slice(0, 15)
@@ -331,7 +397,7 @@ class SearchService {
             .slice(0, 60);
     }
 
-    async searchWithElasticsearch(esClient, query, filters) {
+    async searchWithElasticsearch(esClient, query, filters, semanticAnalysis = null) {
         
         try {
             const countResponse = await esClient.count({ index: 'products' });
@@ -365,6 +431,41 @@ class SearchService {
             }
         };
         shouldClauses.push(multiMatch);
+
+        if (semanticAnalysis) {
+            const { expandedTerms, categoryPriorities } = semanticAnalysis;
+            
+            expandedTerms.forEach(term => {
+                if (term !== query.toLowerCase()) {
+                    shouldClauses.push({
+                        multi_match: {
+                            query: term,
+                            fields: [
+                                "name^2", 
+                                "title^2", 
+                                "description^1.5", 
+                                "category^2", 
+                                "subcategory^2", 
+                                "tags^1.5"
+                            ],
+                            fuzziness: "AUTO",
+                            boost: 1.5
+                        }
+                    });
+                }
+            });
+            
+            Object.entries(categoryPriorities).forEach(([category, boost]) => {
+                shouldClauses.push({
+                    term: {
+                        "category.keyword": {
+                            value: category,
+                            boost: boost
+                        }
+                    }
+                });
+            });
+        }
 
         for (const keyword of filters.keywords || []) {
             if (keyword.length > 2) {
@@ -631,7 +732,7 @@ class SearchService {
         return products;
     }
 
-    async searchWithMongoDB(mongoClient, query, filters) {
+    async searchWithMongoDB(mongoClient, query, filters, semanticAnalysis = null) {
         const db = mongoClient.db('ecommerce');
         const collection = db.collection('products');
 
@@ -639,6 +740,58 @@ class SearchService {
 
         let mongoQuery = {};
         let products = [];
+
+        // Enhanced search for color queries
+        if (semanticAnalysis && semanticAnalysis.isColorSearch && semanticAnalysis.detectedColor) {
+            console.log(`Color search detected: ${semanticAnalysis.detectedColor}`);
+            
+            // First, try to find exact color matches in the detected intent category
+            const colorFilterConditions = [];
+            
+            // Add color condition
+            colorFilterConditions.push({ 
+                color: { $regex: semanticAnalysis.detectedColor, $options: 'i' } 
+            });
+            
+            // Add intent-based category condition
+            if (semanticAnalysis.detectedIntents.includes('FOOTWEAR_SEARCH')) {
+                colorFilterConditions.push({ category: 'footwear' });
+            } else if (semanticAnalysis.detectedIntents.includes('CLOTHING_SEARCH')) {
+                colorFilterConditions.push({ category: 'fashion' });
+            } else if (semanticAnalysis.detectedIntents.includes('ELECTRONICS_SEARCH')) {
+                colorFilterConditions.push({ category: 'electronics' });
+            }
+            
+            // Add other filters
+            if (filters.brand) {
+                colorFilterConditions.push({ brand: { $regex: filters.brand, $options: 'i' } });
+            }
+            if (filters.price_max) {
+                colorFilterConditions.push({ price: { $lte: filters.price_max } });
+            }
+            if (filters.price_min) {
+                colorFilterConditions.push({ price: { $gte: filters.price_min } });
+            }
+            
+            const colorQuery = { $and: colorFilterConditions };
+            console.log('MongoDB color-specific query:', JSON.stringify(colorQuery, null, 2));
+            
+            const colorProducts = await collection.find(colorQuery)
+                .sort({ 
+                    averageRating: -1, 
+                    totalReviews: -1, 
+                    createdAt: -1  
+                })
+                .limit(30)
+                .toArray();
+            
+            console.log(`Color-specific search found ${colorProducts.length} products`);
+            
+            if (colorProducts.length > 0) {
+                products = colorProducts;
+                return { products: products, wasCategorySearch: true };
+            }
+        }
 
         try {
             
