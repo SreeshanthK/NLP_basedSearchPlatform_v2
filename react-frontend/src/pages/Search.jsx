@@ -16,6 +16,8 @@ const Search = () => {
     ratings: []
   });
   const [activeSearch, setActiveSearch] = useState('');
+  const [totalResults, setTotalResults] = useState(0);
+  const [searchMethods, setSearchMethods] = useState({});
 
   // Get initial query and filters from URL params
   useEffect(() => {
@@ -60,11 +62,29 @@ const Search = () => {
       console.log('Performing search with query:', query);
       console.log('Using filters:', currentFilters);
       
-      const data = await searchProducts(query, currentFilters);
-      setSearchResults(data);
+      const response = await searchProducts(query, currentFilters);
+      
+      // Handle different response formats
+      if (Array.isArray(response)) {
+        setSearchResults(response);
+        setTotalResults(response.length);
+        setSearchMethods({});
+      } else if (response && typeof response === 'object') {
+        if (response.products && Array.isArray(response.products)) {
+          setSearchResults(response.products);
+          setTotalResults(response.totalResults || response.products.length);
+          setSearchMethods(response.searchMethods || {});
+        } else {
+          setSearchResults([]);
+          setTotalResults(0);
+          setSearchMethods({});
+        }
+      }
     } catch (err) {
       setError('Failed to search products. Please try again later.');
       console.error(err);
+      setSearchResults([]);
+      setTotalResults(0);
     } finally {
       setLoading(false);
     }
@@ -98,143 +118,100 @@ const Search = () => {
   };
 
   const handleFilterChange = (newFilters) => {
-    console.log('Filter changed:', newFilters);
     setFilters(newFilters);
-    
-    // Update URL with filter parameters
-    const newParams = { ...Object.fromEntries(searchParams) };
-    
-    // Update category parameter
-    if (newFilters.categories && newFilters.categories.length > 0) {
-      newParams.category = newFilters.categories[0];
-    } else {
-      delete newParams.category;
-    }
-    
-    // Update price range parameters
-    if (newFilters.priceRange?.min > 0) {
-      newParams.min_price = newFilters.priceRange.min.toString();
-    } else {
-      delete newParams.min_price;
-    }
-    
-    if (newFilters.priceRange?.max < 1000) {
-      newParams.max_price = newFilters.priceRange.max.toString();
-    } else {
-      delete newParams.max_price;
-    }
-    
-    // Update rating parameter
-    if (newFilters.ratings && newFilters.ratings.length > 0) {
-      newParams.rating = Math.min(...newFilters.ratings).toString();
-    } else {
-      delete newParams.rating;
-    }
-    
-    setSearchParams(newParams);
-    
-    // If we already have an active search, apply the filters
     if (activeSearch) {
       performSearch(activeSearch, newFilters);
     }
   };
 
+  // Get search method information for display
+  const getSearchMethodInfo = () => {
+    const methods = [];
+    
+    if (searchMethods.vector) methods.push('Vector');
+    if (searchMethods.elasticsearch) methods.push('Elasticsearch');
+    if (searchMethods.mongodb) methods.push('MongoDB');
+    if (searchMethods.fallback) methods.push('Fallback');
+    
+    return methods.length > 0 ? methods.join(', ') : 'Standard';
+  };
+
   return (
-    <div className="w-full bg-gray-50">
-      <div className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-8 text-gray-900">Search Products</h1>
+    <div className="container mx-auto px-4 py-8">
+      <div className="mb-6">
+        <SearchBar 
+          initialQuery={activeSearch} 
+          onSearch={handleSearch} 
+        />
+      </div>
+      
+      <div className="flex flex-col md:flex-row gap-8">
+        <div className="w-full md:w-1/4 lg:w-1/5">
+          <FilterSidebar 
+            filters={filters}
+            onFilterChange={handleFilterChange}
+            searchResults={searchResults}
+          />
+        </div>
         
-        <SearchBar onSearch={handleSearch} initialQuery={searchParams.get('query') || ''} />
-        
-        <div className="flex flex-col md:flex-row gap-8">
-          <div className="w-full md:w-1/4">
-            <div className="sticky top-4">
-              <FilterSidebar onFilterChange={handleFilterChange} initialFilters={filters} />
+        <div className="w-full md:w-3/4 lg:w-4/5">
+          {loading ? (
+            <div className="flex justify-center items-center h-64">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
             </div>
-          </div>
-          
-          <div className="w-full md:w-3/4">
-            {loading ? (
-              <div className="flex justify-center items-center h-64 bg-white rounded-lg shadow-sm border border-gray-100">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-              </div>
-            ) : error ? (
-              <div className="text-center text-red-600 p-8 bg-white rounded-lg shadow-sm border border-gray-100">
-                <p className="mb-4">{error}</p>
-                <button 
-                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors"
-                  onClick={() => activeSearch && handleSearch(activeSearch)}
-                >
-                  Try Again
-                </button>
-              </div>
-            ) : searchResults.length > 0 ? (
-              <>
-                <div className="mb-6 bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-                  <p className="text-gray-700">
-                    Found <span className="font-semibold">{searchResults.length}</span> results for 
-                    <span className="font-semibold"> "{activeSearch}"</span>
-                    {(filters.categories.length > 0 || 
-                      filters.ratings.length > 0 || 
-                      filters.priceRange.min > 0 || 
-                      filters.priceRange.max < 1000) && (
-                      <span className="text-gray-500"> (filtered)</span>
-                    )}
+          ) : error ? (
+            <div className="bg-red-50 text-red-600 p-4 rounded-md">
+              <p>{error}</p>
+            </div>
+          ) : (
+            <>
+              <div className="mb-4">
+                <h2 className="text-xl font-semibold text-gray-800">
+                  {searchResults.length > 0 
+                    ? `${totalResults} results for "${activeSearch}"`
+                    : `No results found for "${activeSearch}"`
+                  }
+                </h2>
+                {searchResults.length > 0 && (
+                  <p className="text-gray-500 text-sm mt-1">
+                    Showing products sorted by relevance • Search methods: {getSearchMethodInfo()}
                   </p>
-                  
-                  {/* Active filters display */}
-                  {(filters.categories.length > 0 || 
-                    filters.ratings.length > 0 || 
-                    filters.priceRange.min > 0 || 
-                    filters.priceRange.max < 1000) && (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {filters.categories.map(category => (
-                        <span key={category} className="bg-blue-50 text-blue-700 text-xs px-2 py-1 rounded-full">
-                          Category: {category}
-                        </span>
-                      ))}
-                      
-                      {filters.ratings.length > 0 && (
-                        <span className="bg-yellow-50 text-yellow-700 text-xs px-2 py-1 rounded-full">
-                          Rating: {Math.min(...filters.ratings)}+ stars
-                        </span>
-                      )}
-                      
-                      {(filters.priceRange.min > 0 || filters.priceRange.max < 1000) && (
-                        <span className="bg-green-50 text-green-700 text-xs px-2 py-1 rounded-full">
-                          Price: ${filters.priceRange.min} - ${filters.priceRange.max}
-                        </span>
-                      )}
-                    </div>
-                  )}
+                )}
+              </div>
+              
+              {searchResults.length === 0 ? (
+                <div className="bg-gray-50 p-8 rounded-lg text-center">
+                  <h3 className="text-lg font-medium text-gray-800 mb-2">No products found</h3>
+                  <p className="text-gray-600 mb-4">Try adjusting your search or filter criteria</p>
+                  <button 
+                    className="text-blue-600 hover:text-blue-800 font-medium"
+                    onClick={() => {
+                      setFilters({
+                        priceRange: { min: 0, max: 1000 },
+                        categories: [],
+                        ratings: []
+                      });
+                      if (activeSearch) {
+                        performSearch(activeSearch, {
+                          priceRange: { min: 0, max: 1000 },
+                          categories: [],
+                          ratings: []
+                        });
+                      }
+                    }}
+                  >
+                    Clear all filters
+                  </button>
                 </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                   {searchResults.map((product) => (
-                    <ProductCard key={product.id} product={product} />
+                    <ProductCard key={product._id || product.id} product={product} />
                   ))}
                 </div>
-              </>
-            ) : activeSearch ? (
-              <div className="text-center p-12 bg-white rounded-lg shadow-sm border border-gray-100">
-                <p className="text-gray-500 mb-4">
-                  No products found for "{activeSearch}"
-                </p>
-                <p className="text-gray-500">
-                  Try a different search term or adjust your filters
-                </p>
-              </div>
-            ) : (
-              <div className="text-center p-12 bg-white rounded-lg shadow-sm border border-gray-100">
-                <p className="text-gray-500">
-                  Enter a search term above to find products
-                </p>
-                <p className="text-gray-500 mt-2">
-                  Try phrases like "red shoes under $100" or "high-rated smartphones"
-                </p>
-              </div>
-            )}
-          </div>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>
