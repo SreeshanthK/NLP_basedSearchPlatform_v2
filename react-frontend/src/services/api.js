@@ -64,6 +64,30 @@ export const searchProducts = async (query, filters = {}) => {
   }
 };
 
+// Analyze product reviews using NLP
+export const analyzeReviews = async (reviews) => {
+  try {
+    if (!reviews || reviews.length === 0) {
+      return {
+        summary: 'No reviews available to analyze.',
+        categoryRatings: {},
+        overallSentiment: { score: 0, label: 'neutral' }
+      };
+    }
+
+    const response = await api.post('/api/reviews/analyze', { reviews });
+    return response.data;
+  } catch (error) {
+    console.error('Error analyzing reviews:', error);
+    return {
+      summary: 'Failed to analyze reviews.',
+      categoryRatings: {},
+      error: error.message,
+      overallSentiment: { score: 0, label: 'neutral' }
+    };
+  }
+};
+
 // Helper function to format product data consistently
 const formatProducts = (productsData) => {
   return productsData.map(product => ({

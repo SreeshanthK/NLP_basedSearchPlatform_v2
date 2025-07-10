@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import PropTypes from 'prop-types';
 import ReviewDisplay from './ReviewDisplay';
+import ReviewAnalyzer from './ReviewAnalyzer';
 
 const ProductCard = ({ product }) => {
   const [isHovered, setIsHovered] = useState(false);
@@ -289,6 +290,16 @@ const ProductCard = ({ product }) => {
                 
                 {/* Reviews Section */}
                 <div>
+                  {/* Review Analysis Section */}
+                  {formattedReviews.length > 0 && (
+                    <div className="mb-6 p-4 bg-blue-50 rounded-lg">
+                      <h3 className="text-lg font-semibold text-gray-800 mb-3">
+                        AI Review Analysis
+                      </h3>
+                      <ReviewAnalyzer reviews={formattedReviews} />
+                    </div>
+                  )}
+                
                   <h3 className="text-xl font-semibold text-gray-800 mb-4">
                     Customer Reviews ({product.totalReviews || 0})
                   </h3>
