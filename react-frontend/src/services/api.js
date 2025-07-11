@@ -9,17 +9,6 @@ const api = axios.create({
   },
 });
 
-// Get featured products for the home page
-export const getFeaturedProducts = async () => {
-  try {
-    const response = await api.get('/api/products');
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching featured products:', error);
-    throw error;
-  }
-};
-
 // Search products with NLP capabilities
 export const searchProducts = async (query, filters = {}) => {
   try {
@@ -30,10 +19,10 @@ export const searchProducts = async (query, filters = {}) => {
       query,
       filters: {
         // Handle multiple categories
-        category: filters.categories && filters.categories.length > 0 ? filters.categories : undefined,
+        category: filters.categories && filters.categories.length > 0 ? filters.categories[0] : undefined,
         
         // Handle brand filters if they exist
-        brand: filters.brands && filters.brands.length > 0 ? filters.brands : undefined,
+        brand: filters.brands && filters.brands.length > 0 ? filters.brands[0] : undefined,
         
         // Price range
         price_min: filters.priceRange?.min,
@@ -50,31 +39,84 @@ export const searchProducts = async (query, filters = {}) => {
     
     const response = await api.post('/search', filterParams);
     
-    // Process the response to ensure all product data is properly formatted
-    const products = response.data.map(product => ({
-      id: product.id || product._id || String(Math.random()),
-      name: product.name || product.title || 'Unknown Product',
-      description: product.description || '',
-      price: product.price || 0,
-      image: product.image || 'https://via.placeholder.com/300',
-      category: product.category || '',
-      brand: product.brand || '',
-      rating: product.rating || null,
-      color: product.color || '',
-      gender: product.gender || '',
-      material: product.material || '',
-      size: product.size || '',
-      stock: product.stock || null,
-      tags: Array.isArray(product.tags) ? product.tags : [],
-      _score: product._score,
-      features: product.features || []
-    }));
+    // If the response is a direct array of products
+    if (Array.isArray(response.data)) {
+      return formatProducts(response.data);
+    }
     
-    return products;
+    // If the response is an object with a products property
+    if (response.data && response.data.products) {
+      return {
+        products: formatProducts(response.data.products),
+        totalResults: response.data.totalResults || response.data.products.length,
+        searchMethods: response.data.searchMethods || {},
+        isFallback: response.data.isFallback || false
+      };
+    }
+    
+    // Default case - return empty array
+    return [];
+    
   } catch (error) {
     console.error('Error searching products:', error);
-    throw error;
+    // Return empty array instead of throwing error to prevent app crashes
+    return [];
   }
+};
+
+// Analyze product reviews using NLP
+export const analyzeReviews = async (reviews) => {
+  try {
+    if (!reviews || reviews.length === 0) {
+      return {
+        summary: 'No reviews available to analyze.',
+        categoryRatings: {},
+        overallSentiment: { score: 0, label: 'neutral' }
+      };
+    }
+
+    const response = await api.post('/api/reviews/analyze', { reviews });
+    return response.data;
+  } catch (error) {
+    console.error('Error analyzing reviews:', error);
+    return {
+      summary: 'Failed to analyze reviews.',
+      categoryRatings: {},
+      error: error.message,
+      overallSentiment: { score: 0, label: 'neutral' }
+    };
+  }
+};
+
+// Helper function to format product data consistently
+const formatProducts = (productsData) => {
+  return productsData.map(product => ({
+    id: product.id || product._id || String(Math.random()),
+    _id: product._id || product.id || String(Math.random()),
+    name: product.name || product.title || 'Unknown Product',
+    description: product.description || '',
+    price: product.price || 0,
+    image: product.image || 'https://via.placeholder.com/300',
+    category: product.category || '',
+    subcategory: product.subcategory || '',
+    brand: product.brand || '',
+    averageRating: product.averageRating || product.rating || 0,
+    color: product.color || '',
+    gender: product.gender || '',
+    material: product.material || '',
+    size: product.size || '',
+    stocks: product.stocks || 0,
+    tags: Array.isArray(product.tags) ? product.tags : [],
+    features: Array.isArray(product.features) ? product.features : [],
+    _score: product._score || 0,
+    totalReviews: product.totalReviews || 0,
+    reviews: Array.isArray(product.reviews) ? product.reviews : [],
+    searchType: product.searchType || '',
+    combinedScore: product.combinedScore || 0,
+    vectorScore: product.vectorScore || 0,
+    elasticScore: product.elasticScore || 0,
+    mongoScore: product.mongoScore || 0
+  }));
 };
 
 // Get product categories

@@ -319,6 +319,7 @@ class SearchService {
 
             const db = mongoClient.db('ecommerce');
             const collection = db.collection('products');
+            const reviewCollection = db.collection('reviews');
             
             const productIds = vectorResults.map(r => {
                 try {
@@ -335,6 +336,11 @@ class SearchService {
             console.log(`Found ${products.length} matching products in MongoDB`);
             if (products.length > 0) {
                 console.log(`Found product IDs:`, products.slice(0, 3).map(p => p._id.toString()));
+            }
+
+            // Populate reviews for each product
+            for (const product of products) {
+                product.reviews = await reviewCollection.find({ productId: product._id }).toArray();
             }
 
             return products.map(product => {
@@ -729,12 +735,29 @@ class SearchService {
             products.push(product);
         }
 
+        // Populate reviews from MongoDB for Elasticsearch products
+        const mongoClient = getMongoClient();
+        if (mongoClient) {
+            const db = mongoClient.db('ecommerce');
+            const reviewCollection = db.collection('reviews');
+            
+            for (const product of products) {
+                try {
+                    product.reviews = await reviewCollection.find({ productId: product._id }).toArray();
+                } catch (error) {
+                    console.error('Error fetching reviews for product:', error);
+                    product.reviews = [];
+                }
+            }
+        }
+
         return products;
     }
 
     async searchWithMongoDB(mongoClient, query, filters, semanticAnalysis = null) {
         const db = mongoClient.db('ecommerce');
         const collection = db.collection('products');
+        const reviewCollection = db.collection('reviews');
 
         console.log('MongoDB search query:', query);
 
@@ -789,6 +812,10 @@ class SearchService {
             
             if (colorProducts.length > 0) {
                 products = colorProducts;
+                // Populate reviews for each product
+                for (const product of products) {
+                    product.reviews = await reviewCollection.find({ productId: product._id }).toArray();
+                }
                 return { products: products, wasCategorySearch: true };
             }
         }
@@ -854,6 +881,11 @@ class SearchService {
                 .toArray();
 
             console.log(`MongoDB text search found ${products.length} products`);
+
+            // Populate reviews for each product
+            for (const product of products) {
+                product.reviews = await reviewCollection.find({ productId: product._id }).toArray();
+            }
 
         } catch (textSearchError) {
             console.log('Text search failed, trying regex search:', textSearchError.message);
@@ -930,6 +962,11 @@ class SearchService {
                 .toArray();
 
             console.log(`MongoDB regex search found ${products.length} products`);
+            
+            // Populate reviews for each product
+            for (const product of products) {
+                product.reviews = await reviewCollection.find({ productId: product._id }).toArray();
+            }
         }
 
         if (products.length === 0) {
@@ -1009,6 +1046,12 @@ class SearchService {
                     .toArray();
 
                 console.log(`MongoDB category search found ${products.length} products`);
+                
+                // Populate reviews for each product
+                for (const product of products) {
+                    product.reviews = await reviewCollection.find({ productId: product._id }).toArray();
+                }
+                
                 return { products: products, wasCategorySearch: true };
             }
         }
@@ -1019,6 +1062,7 @@ class SearchService {
     async getFallbackProducts(mongoClient, query) {
         const db = mongoClient.db('ecommerce');
         const collection = db.collection('products');
+        const reviewCollection = db.collection('reviews');
 
         console.log('Getting fallback products with broad search criteria');
         
@@ -1032,6 +1076,11 @@ class SearchService {
                 })
                 .limit(15)
                 .toArray();
+
+            // Populate reviews for each product
+            for (const product of fallbackProducts) {
+                product.reviews = await reviewCollection.find({ productId: product._id }).toArray();
+            }
 
             return fallbackProducts;
         } catch (error) {

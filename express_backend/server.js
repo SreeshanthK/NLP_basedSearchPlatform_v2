@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const { initializeConnections } = require('./src/config/database');
 const searchRoutes = require('./src/routes/searchRoutes');
+const reviewRoutes = require('./src/routes/reviewRoutes');
 
 require('dotenv').config();
 
@@ -10,13 +11,14 @@ const PORT = process.env.PORT || 8001;
 
 app.use(express.json());
 app.use(cors({
-    origin: 'http://localhost:3000',
+    origin: ['http://localhost:3000','http://localhost:5173'],
     credentials: true,
     methods: ['*'],
     allowedHeaders: ['*']
 }));
 
 app.use('/', searchRoutes);
+app.use('/api/reviews', reviewRoutes);
 
 app.get('/health', (req, res) => {
     res.json({
@@ -32,6 +34,7 @@ app.get('/', (req, res) => {
         message: 'NLP Search Platform API',
         endpoints: {
             search: 'POST /search',
+            reviewAnalysis: 'POST /api/reviews/analyze',
             health: 'GET /health',
             debug: 'GET /debug/elasticsearch'
         },
