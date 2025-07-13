@@ -1,14 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import ReviewDisplay from './ReviewDisplay';
 import ReviewAnalyzer from './ReviewAnalyzer';
-
 const ProductCard = ({ product }) => {
-  const [isHovered, setIsHovered] = useState(false);
-  const [showDetails, setShowDetails] = useState(false);
-  const [showReviewModal, setShowReviewModal] = useState(false);
-  
-  // Format reviews to match ReviewDisplay component's expected format
+  const [showModal, setShowModal] = useState(false);
   const formattedReviews = product.reviews?.map(review => ({
     rating: review.rating || 5,
     text: review.content || review.title || 'No review text available',
@@ -16,353 +10,368 @@ const ProductCard = ({ product }) => {
     date: review.createdAt || new Date().toISOString(),
     title: review.title || ''
   })) || [];
-  
-  const handleViewAllReviews = () => {
-    setShowReviewModal(true);
+  const openModal = () => {
+    setShowModal(true);
+    document.body.style.overflow = 'hidden';
   };
-
   const closeModal = () => {
-    setShowReviewModal(false);
+    setShowModal(false);
+    document.body.style.overflow = 'unset';
   };
-  
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') {
+        closeModal();
+      }
+    };
+    if (showModal) {
+      document.addEventListener('keydown', handleEscape);
+    }
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+      document.body.style.overflow = 'unset';
+    };
+  }, [showModal]);
   return (
     <>
+      {}
       <div 
-        className={`bg-white rounded-lg overflow-hidden transition-all duration-300 border border-gray-100 ${
-          isHovered ? 'shadow-lg transform -translate-y-1' : 'shadow-sm'
-        }`}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
+        className="bg-white rounded-lg shadow-md border border-gray-200 hover:shadow-lg transition-all duration-300 overflow-hidden cursor-pointer group relative flex"
+        onClick={openModal}
       >
-        <div className="h-48 bg-gray-100 relative overflow-hidden">
-          {product.image && (
-            <img 
-              src={product.image} 
-              alt={product.name} 
-              className={`w-full h-full object-cover transition-transform duration-500 ${
-                isHovered ? 'scale-105' : ''
-              }`}
-            />
-          )}
-          <div className="absolute top-2 left-2 flex flex-col gap-1">
-            {product.brand && (
-              <span className="bg-white px-2 py-1 rounded-full text-xs font-semibold shadow-sm text-gray-700">
-                {product.brand}
+        {}
+        <div className="w-48 h-48 bg-gradient-to-br from-gray-100 via-gray-50 to-gray-100 relative overflow-hidden flex-shrink-0">
+          <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+          {}
+          <div className="w-full h-full flex items-center justify-center text-gray-400">
+            <svg className="w-20 h-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </div>
+          {}
+          {product.stocks !== undefined && (
+            <div className="absolute top-2 left-2">
+              <span className={`px-2 py-1 rounded-md text-xs font-semibold ${
+                product.stocks > 0 
+                  ? 'bg-green-100 text-green-700 border border-green-200' 
+                  : 'bg-red-100 text-red-700 border border-red-200'
+              }`}>
+                {product.stocks > 0 ? `In Stock` : 'Out of Stock'}
               </span>
-            )}
-          </div>
-          <div className="absolute top-2 right-2 flex flex-col gap-1">
-            {product.averageRating && (
-              <div className="bg-white px-2 py-1 rounded-full text-sm font-semibold flex items-center shadow-sm">
-                <span className="text-yellow-400 mr-1">★</span>
-                <span className="text-gray-700">{product.averageRating.toFixed(1)}</span>
-                {product.totalReviews > 0 && (
-                  <span className="text-gray-500 text-xs ml-1">({product.totalReviews})</span>
-                )}
-              </div>
-            )}
-            {product._score !== undefined && product._score !== null && (
-              <div className="bg-blue-50 px-2 py-1 rounded-full text-xs font-semibold flex items-center shadow-sm">
-                <span className="text-blue-700">Score: {product._score.toFixed(2)}</span>
-              </div>
-            )}
-          </div>
-          {isHovered && (
-            <div className="absolute inset-0 bg-black bg-opacity-20 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity duration-300">
-              <button 
-                className="bg-white text-gray-800 px-4 py-2 rounded-md font-medium hover:bg-gray-100 transition-colors"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowDetails(!showDetails);
-                }}
-              >
-                {showDetails ? 'Hide Details' : 'View Details'}
-              </button>
             </div>
           )}
         </div>
-        <div className="p-4">
-          <div className="mb-2 flex flex-wrap gap-2">
-            {product.category && (
-              <span className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-full font-medium">
-                {product.category}
-              </span>
+        {}
+        <div className="flex-1 p-4 flex flex-col justify-between">
+          {}
+          <div>
+            {}
+            <h3 className="text-base font-semibold text-gray-900 line-clamp-2 group-hover:text-blue-600 transition-colors duration-200 mb-2">
+              {product.name}
+            </h3>
+            {}
+            {product.averageRating && (
+              <div className="flex items-center gap-2 mb-2">
+                <div className="flex text-yellow-400 text-sm">
+                  {[...Array(5)].map((_, i) => (
+                    <span key={i} className={i < Math.floor(product.averageRating) ? "text-yellow-400" : "text-gray-300"}>★</span>
+                  ))}
+                </div>
+                <span className="text-sm text-blue-600 font-medium underline cursor-pointer hover:text-blue-700">
+                  {product.averageRating.toFixed(1)}
+                </span>
+                <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded-md font-medium">
+                  Choice
+                </span>
+              </div>
             )}
-            {product.gender && (
-              <span className="text-xs bg-purple-50 text-purple-700 px-2 py-1 rounded-full font-medium">
-                {product.gender}
-              </span>
+            {}
+            <p className="text-gray-600 text-sm line-clamp-3 leading-relaxed mb-3">
+              {product.description || 'No description available.'}
+            </p>
+            {}
+            {(product.material || product.size || product.gender) && (
+              <div className="mb-3">
+                <ul className="text-sm text-gray-700 space-y-1">
+                  {product.material && (
+                    <li className="flex items-center gap-2">
+                      <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
+                      Material: {product.material}
+                    </li>
+                  )}
+                  {product.size && (
+                    <li className="flex items-center gap-2">
+                      <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
+                      Size: {product.size}
+                    </li>
+                  )}
+                  {product.gender && (
+                    <li className="flex items-center gap-2">
+                      <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
+                      For: {product.gender}
+                    </li>
+                  )}
+                </ul>
+              </div>
             )}
-            {product.color && (
-              <span className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded-full font-medium">
-                {product.color}
-              </span>
-            )}
-          </div>
-          <h3 className="text-lg font-semibold text-gray-800 mb-2 line-clamp-2 h-14">{product.name}</h3>
-          <p className="text-gray-600 text-sm mb-3 line-clamp-2 h-10">{product.description}</p>
-          
-          {/* Extended details section */}
-          {showDetails && (
-            <div className="mt-3 pt-3 border-t border-gray-100">
-              <h4 className="font-medium text-gray-800 mb-2">Product Details</h4>
-              <ul className="text-sm space-y-1">
-                {product.brand && <li><span className="font-medium">Brand:</span> {product.brand}</li>}
-                {product.color && <li><span className="font-medium">Color:</span> {product.color}</li>}
-                {product.gender && <li><span className="font-medium">Gender:</span> {product.gender}</li>}
-                {product.material && <li><span className="font-medium">Material:</span> {product.material}</li>}
-                {product.size && <li><span className="font-medium">Size:</span> {product.size}</li>}
-                {product.stocks !== undefined && <li><span className="font-medium">In Stock:</span> {product.stocks}</li>}
-                {product.totalReviews > 0 && (
-                  <li>
-                    <span className="font-medium">Reviews:</span> {product.totalReviews} {product.totalReviews === 1 ? 'review' : 'reviews'}
-                  </li>
-                )}
-                {product.tags && product.tags.length > 0 && (
-                  <li>
-                    <span className="font-medium">Tags:</span>{' '}
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {product.tags.map((tag, index) => (
-                        <span key={index} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  </li>
-                )}
-                {product._score !== undefined && product._score !== null && (
-                  <li>
-                    <span className="font-medium">NLP Score:</span>{' '}
-                    <div className="text-xs text-gray-500 mt-0.5">Raw score: {product._score.toFixed(2)}</div>
-                  </li>
-                )}
-                
-                {/* Reviews section */}
-                {formattedReviews.length > 0 && (
-                  <li className="mt-4">
-                    <span className="font-medium text-base">Reviews</span>
-                    <div className="mt-2">
-                      <ReviewDisplay 
-                        reviews={formattedReviews} 
-                        maxDisplayed={2} 
-                        onViewAllClick={handleViewAllReviews}
-                      />
-                    </div>
-                  </li>
-                )}
-              </ul>
+            {}
+            <div className="flex flex-wrap gap-2 mb-3">
+              {product.brand && (
+                <span className="bg-gray-100 text-gray-700 px-2 py-1 rounded-md text-xs font-medium">
+                  {product.brand}
+                </span>
+              )}
+              {product.category && (
+                <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-md text-xs font-medium">
+                  {product.category}
+                </span>
+              )}
+              {product.color && (
+                <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-md text-xs font-medium">
+                  {product.color}
+                </span>
+              )}
             </div>
-          )}
-          
-          <div className="flex justify-between items-center mt-4">
-            <span className="text-xl font-bold text-gray-900">${product.price.toFixed(2)}</span>
-            <button 
-              className={`px-4 py-2 rounded-md text-white transition-colors ${
-                isHovered 
-                  ? 'bg-blue-700 hover:bg-blue-800' 
-                  : 'bg-blue-600 hover:bg-blue-700'
-              }`}
-            >
-              Add to Cart
-            </button>
+          </div>
+          {}            <div className="flex items-end justify-between">
+            {}
+            <div className="flex flex-col">
+              <div className="flex items-baseline gap-2 mb-1">
+                <span className="text-2xl font-bold text-gray-900">
+                  ₹{product.price?.toFixed(2)}
+                </span>
+              </div>
+              {}
+              <div className="text-sm text-gray-600 mb-1">
+                <div className="flex items-center gap-1">
+                  <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>FREE delivery</span>
+                </div>
+              </div>
+              <span className="text-xs text-blue-600 font-medium">
+                Match Score: {(() => {
+                  const score = product._score || product.nlp_score || product.semantic_score;
+                  const normalizedScore = Math.min(100, Math.max(0, (score / 30) * 100));
+                  return normalizedScore.toFixed(0);
+                })()}%
+              </span>
+            </div>
+            {}
+            <div className="flex flex-col gap-2">
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openModal();
+                }}
+                className="bg-blue-600 text-white font-medium py-2 px-6 rounded-lg hover:bg-blue-700 transition-all duration-200 text-sm min-w-[120px]"
+              >
+                View Details
+              </button>
+            </div>
           </div>
         </div>
       </div>
-
-      {/* Review Modal */}
-      {showReviewModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-            {/* Modal Header */}
-            <div className="p-4 border-b flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-gray-800">Product Details & Reviews</h2>
-              <button 
-                className="text-gray-500 hover:text-gray-700"
+      {}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {}
+          <div 
+            className="absolute inset-0 bg-black/70 backdrop-blur-md transition-opacity duration-300"
+            onClick={closeModal}
+          ></div>
+          {}
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-7xl max-h-[90vh] overflow-hidden transform transition-all duration-300 scale-100">
+            {}
+            <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex justify-between items-center z-10">
+              <div className="flex-1">
+                <h1 className="text-xl font-bold text-gray-900 mb-1">
+                  {product.name}
+                </h1>
+                <div className="flex items-center gap-4">
+                  <span className="text-2xl font-bold text-blue-600">
+                    ${product.price?.toFixed(2)}
+                  </span>
+                  {product.averageRating && (
+                    <div className="flex items-center gap-2">
+                      <div className="flex text-yellow-400 text-sm">
+                        {[...Array(5)].map((_, i) => (
+                          <span key={i} className={i < Math.floor(product.averageRating) ? "text-yellow-400" : "text-gray-300"}>★</span>
+                        ))}
+                      </div>
+                      <span className="text-sm font-semibold text-gray-700">
+                        {product.averageRating.toFixed(1)}
+                      </span>
+                      <span className="text-gray-500 text-sm">
+                        ({product.totalReviews || formattedReviews.length > 0 ? (product.totalReviews || formattedReviews.length) : ''} {product.totalReviews || formattedReviews.length > 0 ? 'reviews' : 'No reviews yet'})
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <button
                 onClick={closeModal}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors duration-200 ml-4"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            
-            {/* Modal Content */}
-            <div className="flex-1 overflow-y-auto p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {/* Product Information */}
-                <div>
-                  <div className="mb-4">
-                    {product.image && (
-                      <img 
-                        src={product.image} 
-                        alt={product.name} 
-                        className="w-full h-64 object-cover rounded-lg"
-                      />
-                    )}
-                  </div>
-                  
-                  <h3 className="text-2xl font-bold text-gray-800 mb-2">{product.name}</h3>
-                  
-                  <div className="flex items-center mb-4">
-                    {product.averageRating && (
-                      <div className="flex items-center mr-4">
-                        <div className="flex text-yellow-400">
-                          {[...Array(5)].map((_, i) => (
-                            <span key={i} className={i < Math.round(product.averageRating) ? "text-yellow-400" : "text-gray-300"}>★</span>
-                          ))}
-                        </div>
-                        <span className="ml-2 text-gray-700">{product.averageRating.toFixed(1)}</span>
-                      </div>
-                    )}
-                    {product.totalReviews > 0 && (
-                      <span className="text-gray-600">{product.totalReviews} reviews</span>
-                    )}
-                  </div>
-                  
-                  <p className="text-gray-600 mb-6">{product.description}</p>
-                  
-                  <div className="mb-6">
-                    <h4 className="font-semibold text-gray-800 mb-2">Product Details</h4>
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      {product.brand && (
-                        <div>
-                          <span className="font-medium">Brand:</span> {product.brand}
-                        </div>
-                      )}
-                      {product.category && (
-                        <div>
-                          <span className="font-medium">Category:</span> {product.category}
-                        </div>
-                      )}
-                      {product.subcategory && (
-                        <div>
-                          <span className="font-medium">Subcategory:</span> {product.subcategory}
-                        </div>
-                      )}
-                      {product.color && (
-                        <div>
-                          <span className="font-medium">Color:</span> {product.color}
-                        </div>
-                      )}
-                      {product.gender && (
-                        <div>
-                          <span className="font-medium">Gender:</span> {product.gender}
-                        </div>
-                      )}
-                      {product.material && (
-                        <div>
-                          <span className="font-medium">Material:</span> {product.material}
-                        </div>
-                      )}
-                      {product.size && (
-                        <div>
-                          <span className="font-medium">Size:</span> {product.size}
-                        </div>
-                      )}
-                      {product.stocks !== undefined && (
-                        <div>
-                          <span className="font-medium">In Stock:</span> {product.stocks}
-                        </div>
-                      )}
+            {}
+            <div className="flex h-[calc(90vh-160px)]">
+              {}
+              <div className="w-[30%] bg-gray-50 border-r border-gray-200 overflow-y-auto">
+                <div className="p-5 space-y-5">
+                  {}
+                  <div className="w-32 h-32 bg-gradient-to-br from-gray-200 to-gray-300 rounded-lg overflow-hidden">
+                    <div className="w-full h-full flex items-center justify-center text-gray-500">
+                      <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
                     </div>
                   </div>
-                  
+                  {}
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900 mb-2">Description</h3>
+                    <p className="text-gray-700 leading-relaxed text-xs">
+                      {product.description || 'No description available.'}
+                    </p>
+                  </div>
+                  {}
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900 mb-3">Specifications</h3>
+                    <div className="space-y-2">
+                      {[
+                        { label: 'Brand', value: product.brand },
+                        { label: 'Category', value: product.category },
+                        { label: 'Subcategory', value: product.subcategory },
+                        { label: 'Color', value: product.color },
+                        { label: 'Gender', value: product.gender },
+                        { label: 'Material', value: product.material },
+                        { label: 'Size', value: product.size },
+                        { label: 'Stock', value: product.stocks }
+                      ].map((item, index) => (
+                        item.value && (
+                          <div key={index} className="flex justify-between py-1 border-b border-gray-200 last:border-b-0">
+                            <span className="text-xs font-medium text-gray-600">{item.label}</span>
+                            <span className="text-xs text-gray-900 font-semibold">{item.value}</span>
+                          </div>
+                        )
+                      ))}
+                    </div>
+                  </div>
+                  {}
                   {product.tags && product.tags.length > 0 && (
-                    <div className="mb-6">
-                      <h4 className="font-semibold text-gray-800 mb-2">Tags</h4>
-                      <div className="flex flex-wrap gap-2">
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-900 mb-2">Tags</h3>
+                      <div className="flex flex-wrap gap-1">
                         {product.tags.map((tag, index) => (
-                          <span key={index} className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm">
-                            {tag}
+                          <span key={index} className="bg-blue-100 text-blue-700 px-2 py-1 rounded-md text-xs font-medium">
+                            #{tag}
                           </span>
                         ))}
                       </div>
                     </div>
                   )}
-                  
-                  <div className="flex items-center justify-between mt-6">
-                    <span className="text-2xl font-bold text-gray-900">${product.price.toFixed(2)}</span>
-                    <button className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
-                      Add to Cart
-                    </button>
+                  {}
+                  <div className="bg-white rounded-lg p-3 border border-gray-200">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${product.stocks > 0 ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                      <span className={`font-semibold text-xs ${product.stocks > 0 ? 'text-green-700' : 'text-red-700'}`}>
+                        {product.stocks > 0 ? `${product.stocks} in stock` : 'Out of stock'}
+                      </span>
+                    </div>
                   </div>
                 </div>
-                
-                {/* Reviews Section */}
-                <div>
-                  {/* Review Analysis Section */}
+              </div>
+              {}
+              <div className="w-[70%] bg-white overflow-y-auto">
+                <div className="p-5 space-y-5">
+                  {}
                   {formattedReviews.length > 0 && (
-                    <div className="mb-6 p-4 bg-blue-50 rounded-lg">
-                      <h3 className="text-lg font-semibold text-gray-800 mb-3">
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-100">
+                      <h2 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+                        <div className="w-6 h-6 bg-blue-600 rounded-lg flex items-center justify-center">
+                          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                          </svg>
+                        </div>
                         AI Review Analysis
-                      </h3>
-                      <ReviewAnalyzer reviews={formattedReviews} />
+                      </h2>
+                      <div className="bg-white rounded-lg p-3 border border-blue-200">
+                        <ReviewAnalyzer reviews={formattedReviews} />
+                      </div>
                     </div>
                   )}
-                
-                  <h3 className="text-xl font-semibold text-gray-800 mb-4">
-                    Customer Reviews ({product.totalReviews || 0})
-                  </h3>
-                  
+                  {}
                   {formattedReviews.length > 0 ? (
-                    <div className="space-y-6">
-                      {formattedReviews.map((review, index) => (
-                        <div key={index} className="border-b border-gray-100 pb-4 last:border-0">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center">
-                              <div className="flex text-yellow-400">
-                                {[...Array(5)].map((_, i) => (
-                                  <span key={i} className={i < (review.rating || 5) ? "text-yellow-400" : "text-gray-300"}>★</span>
-                                ))}
-                              </div>
-                              <span className="ml-2 font-medium text-gray-700">
-                                {review.username || 'Anonymous'}
-                              </span>
-                            </div>
-                            <span className="text-sm text-gray-500">
-                              {review.date ? new Date(review.date).toLocaleDateString() : 'Recent review'}
-                            </span>
+                    <div>
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                          <div className="w-6 h-6 bg-green-600 rounded-lg flex items-center justify-center">
+                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                            </svg>
                           </div>
-                          
-                          {review.title && (
-                            <h4 className="font-medium text-gray-800 mb-1">{review.title}</h4>
-                          )}
-                          
-                          <p className="text-gray-700">{review.text || 'No review text available'}</p>
-                          
-                          {review.pros && (
-                            <div className="mt-2">
-                              <span className="text-green-600 font-medium text-sm">Pros:</span>
-                              <p className="text-sm text-gray-600">{review.pros}</p>
+                          Customer Reviews
+                        </h2>
+                        <span className="bg-gray-100 text-gray-700 px-2 py-1 rounded-full text-xs font-medium">
+                          {formattedReviews.length} reviews
+                        </span>
+                      </div>
+                      <div className="space-y-3">
+                        {formattedReviews.map((review, index) => (
+                          <div key={index} className="bg-gray-50 rounded-lg p-4 border border-gray-200 hover:border-gray-300 transition-colors duration-200">
+                            <div className="flex items-start gap-3">
+                              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-xs">
+                                {review.username.charAt(0).toUpperCase()}
+                              </div>
+                              <div className="flex-1">
+                                <div className="flex items-center justify-between mb-1">
+                                  <h4 className="font-semibold text-gray-900 text-xs">{review.username}</h4>
+                                  <span className="text-xs text-gray-500">
+                                    {new Date(review.date).toLocaleDateString('en-US', { 
+                                      year: 'numeric', 
+                                      month: 'short', 
+                                      day: 'numeric' 
+                                    })}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1 mb-2">
+                                  <div className="flex text-yellow-400">
+                                    {[...Array(5)].map((_, i) => (
+                                      <span key={i} className={`text-xs ${i < (review.rating || 5) ? "text-yellow-400" : "text-gray-300"}`}>★</span>
+                                    ))}
+                                  </div>
+                                  <span className="text-xs font-medium text-gray-600">
+                                    {review.rating || 5}/5
+                                  </span>
+                                </div>
+                                {review.title && (
+                                  <h5 className="font-semibold text-gray-800 mb-1 text-xs">{review.title}</h5>
+                                )}
+                                <p className="text-gray-700 leading-relaxed text-xs">{review.text}</p>
+                              </div>
                             </div>
-                          )}
-                          
-                          {review.cons && (
-                            <div className="mt-2">
-                              <span className="text-red-600 font-medium text-sm">Cons:</span>
-                              <p className="text-sm text-gray-600">{review.cons}</p>
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   ) : (
-                    <div className="text-center p-8 bg-gray-50 rounded">
-                      <p className="text-gray-500">No reviews available for this product</p>
+                    <div className="text-center py-12">
+                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                        </svg>
+                      </div>
+                      <h3 className="text-sm font-semibold text-gray-700 mb-1">No Reviews Yet</h3>
+                      <p className="text-gray-500 text-xs">Be the first to share your experience with this product!</p>
                     </div>
                   )}
                 </div>
               </div>
-            </div>
-            
-            {/* Modal Footer */}
-            <div className="p-4 border-t">
-              <button 
-                className="w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-md transition-colors"
-                onClick={closeModal}
-              >
-                Close
-              </button>
             </div>
           </div>
         </div>
@@ -370,7 +379,6 @@ const ProductCard = ({ product }) => {
     </>
   );
 };
-
 ProductCard.propTypes = {
   product: PropTypes.shape({
     id: PropTypes.string,
@@ -378,7 +386,6 @@ ProductCard.propTypes = {
     name: PropTypes.string.isRequired,
     description: PropTypes.string,
     price: PropTypes.number.isRequired,
-    image: PropTypes.string,
     category: PropTypes.string,
     subcategory: PropTypes.string,
     averageRating: PropTypes.number,
@@ -389,7 +396,7 @@ ProductCard.propTypes = {
     size: PropTypes.string,
     stocks: PropTypes.number,
     tags: PropTypes.arrayOf(PropTypes.string),
-    _score: PropTypes.number, // NLP relevance score
+    _score: PropTypes.number,
     totalReviews: PropTypes.number,
     reviews: PropTypes.arrayOf(
       PropTypes.shape({
@@ -405,5 +412,4 @@ ProductCard.propTypes = {
     )
   }).isRequired,
 };
-
-export default ProductCard; 
+export default ProductCard;

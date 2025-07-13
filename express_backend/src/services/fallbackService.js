@@ -10,10 +10,8 @@ function parseQueryFallback(queryLower) {
         rating_min: null,
         keywords: []
     };
-
     const words = queryLower.split(' ').filter(word => word.trim().length > 2);
     filters.keywords = words;
-
     const categorySynonyms = {
         "footwear": {
             main: ["footwear", "shoes", "boots", "sneakers", "sandals"],
@@ -48,7 +46,6 @@ function parseQueryFallback(queryLower) {
             }
         }
     };
-
     const brandSynonyms = {
         "nike": ["nike"],
         "adidas": ["adidas"],
@@ -60,7 +57,6 @@ function parseQueryFallback(queryLower) {
         "skechers": ["skechers"],
         "wildcraft": ["wildcraft"],
         "bata": ["bata"],
-        
         "apple": ["apple", "iphone", "ipad", "macbook"],
         "samsung": ["samsung", "galaxy"],
         "google": ["google", "pixel"],
@@ -80,7 +76,6 @@ function parseQueryFallback(queryLower) {
         "asus": ["asus"],
         "acer": ["acer"]
     };
-
     const colorSynonyms = {
         "black": ["black", "dark"],
         "white": ["white", "cream"],
@@ -94,13 +89,11 @@ function parseQueryFallback(queryLower) {
         "grey": ["grey", "gray", "silver"],
         "orange": ["orange"]
     };
-
     const genderSynonyms = {
         "women": ["women", "female", "girls", "ladies", "womens"],
         "men": ["men", "male", "boys", "guys", "mens"],
         "unisex": ["unisex", "both", "all", "universal"]
     };
-
     const seasonSynonyms = {
         "summer": ["summer", "hot", "beach", "vacation"],
         "winter": ["winter", "cold", "snow", "warm"],
@@ -108,14 +101,11 @@ function parseQueryFallback(queryLower) {
         "fall": ["fall", "autumn", "cool"],
         "all-season": ["all season", "year round", "versatile"]
     };
-
     for (const [mainCategory, categoryData] of Object.entries(categorySynonyms)) {
-      
         if (categoryData.main.some(synonym => queryLower.includes(synonym))) {
             filters.category = mainCategory;
             break;
         }
-        
         for (const [subcat, synonyms] of Object.entries(categoryData.subcategories || {})) {
             if (synonyms.some(synonym => queryLower.includes(synonym))) {
                 filters.category = mainCategory;
@@ -123,31 +113,26 @@ function parseQueryFallback(queryLower) {
                 break;
             }
         }
-        
         if (filters.category) break;
     }
-
     for (const [brand, synonyms] of Object.entries(brandSynonyms)) {
         if (synonyms.some(synonym => queryLower.includes(synonym))) {
             filters.brand = brand;
             break;
         }
     }
-
     for (const [gender, synonyms] of Object.entries(genderSynonyms)) {
         if (synonyms.some(synonym => queryLower.includes(synonym))) {
             filters.gender = gender;
             break;
         }
     }
-
     for (const [season, synonyms] of Object.entries(seasonSynonyms)) {
         if (synonyms.some(synonym => queryLower.includes(synonym))) {
             filters.season = season;
             break;
         }
     }
-
     const underPatterns = [
         /under\s+(\d+)/,
         /below\s+(\d+)/,
@@ -158,7 +143,6 @@ function parseQueryFallback(queryLower) {
         /within\s+(\d+)/,
         /up\s+to\s+(\d+)/
     ];
-
     const overPatterns = [
         /over\s+(\d+)/,
         /above\s+(\d+)/,
@@ -168,14 +152,12 @@ function parseQueryFallback(queryLower) {
         /minimum\s+(\d+)/,
         /starting\s+from\s+(\d+)/
     ];
-
     const ratingPatterns = [
         /(\d+)\s*star/,
         /rating\s+(\d+)/,
         /rated\s+(\d+)/,
         /(\d+)\s*\+\s*rating/
     ];
-
     for (const pattern of underPatterns) {
         const match = queryLower.match(pattern);
         if (match) {
@@ -183,7 +165,6 @@ function parseQueryFallback(queryLower) {
             break;
         }
     }
-
     if (!filters.price_max) {
         for (const pattern of overPatterns) {
             const match = queryLower.match(pattern);
@@ -193,7 +174,6 @@ function parseQueryFallback(queryLower) {
             }
         }
     }
-
     for (const pattern of ratingPatterns) {
         const match = queryLower.match(pattern);
         if (match) {
@@ -201,10 +181,8 @@ function parseQueryFallback(queryLower) {
             break;
         }
     }
-
     return filters;
 }
-
 module.exports = {
     parseQueryFallback
 };

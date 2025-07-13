@@ -1,6 +1,4 @@
 const mongoose = require('mongoose');
-
-// Review Schema
 const reviewSchema = new mongoose.Schema({
     productId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -38,8 +36,6 @@ const reviewSchema = new mongoose.Schema({
         default: Date.now
     }
 });
-
-// Product Schema
 const productSchema = new mongoose.Schema({
     name: {
         type: String,
@@ -131,7 +127,6 @@ const productSchema = new mongoose.Schema({
 }, {
     timestamps: true
 });
-
 productSchema.index({
     name: 'text',
     title: 'text',
@@ -142,8 +137,6 @@ productSchema.index({
     tags: 'text',
     features: 'text'
 });
-
 const Product = mongoose.model('Product', productSchema);
 const Review = mongoose.model('Review', reviewSchema);
-
 module.exports = { Product, Review };

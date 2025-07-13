@@ -1,6 +1,5 @@
 const { getNLPInstance } = require('../config/nlp');
 const { preprocessQuery } = require('../utils/textUtils');
-
 function parseQueryIntelligently(query) {
     if (!query || typeof query !== 'string') {
         return {
@@ -12,10 +11,8 @@ function parseQueryIntelligently(query) {
             intent: 'general'
         };
     }
-    
     const queryLower = query.toLowerCase();
     const words = queryLower.split(/\s+/);
-    
     const filters = {
         rating_min: null,
         price_max: null,
@@ -24,7 +21,6 @@ function parseQueryIntelligently(query) {
         attributes: {},
         intent: 'general'
     };
-    
     const numbers = [];
     const numberPattern = /\b\d+(?:,\d+)*(?:k|K)?\b/g;
     let match;
@@ -44,42 +40,33 @@ function parseQueryIntelligently(query) {
             });
         }
     }
-    
     const priceKeywords = {
         max: ['under', 'below', 'less than', 'max', 'maximum', 'budget', 'within', 'up to', 'not more than', 'limit'],
         min: ['over', 'above', 'more than', 'min', 'minimum', 'starting', 'at least', 'from'],
         range: ['between', 'to', 'range', '-']
     };
-    
     const ratingKeywords = ['star', 'stars', 'rating', 'rated'];
-    
     for (const number of numbers) {
         const beforeContext = query.substring(0, number.position).toLowerCase();
         const afterContext = query.substring(number.position + number.original.length).toLowerCase();
         const fullContext = (beforeContext + ' ' + afterContext).toLowerCase();
-        
         const isRating = ratingKeywords.some(keyword => 
             beforeContext.includes(keyword) || afterContext.includes(keyword) || 
             number.context.toLowerCase().includes(keyword)
         ) && number.value <= 5; 
-        
         if (isRating) {
             filters.rating_min = number.value;
             continue;
         }
-        
         const isPriceRelated = number.value >= 100; 
-        
         if (isPriceRelated) {
             let priceType = null;
-            
             for (const keyword of priceKeywords.max) {
                 if (beforeContext.includes(keyword)) {
                     priceType = 'max';
                     break;
                 }
             }
-            
             if (!priceType) {
                 for (const keyword of priceKeywords.min) {
                     if (beforeContext.includes(keyword)) {
@@ -88,11 +75,9 @@ function parseQueryIntelligently(query) {
                     }
                 }
             }
-            
             if (!priceType) {
                 priceType = 'max';
             }
-            
             if (priceType === 'max') {
                 filters.price_max = number.value;
             } else if (priceType === 'min') {
@@ -100,7 +85,6 @@ function parseQueryIntelligently(query) {
             }
         }
     }
-    
     const featureKeywords = {
         charging: ['fast charging', 'wireless charging', 'quick charge', 'rapid charge'],
         display: ['amoled', 'oled', 'lcd', 'retina', 'hd', 'full hd', '4k'],
@@ -111,7 +95,6 @@ function parseQueryIntelligently(query) {
         design: ['waterproof', 'water resistant', 'durable', 'lightweight'],
         performance: ['gaming', 'processor', 'chipset', 'performance']
     };
-    
     for (const [category, keywords] of Object.entries(featureKeywords)) {
         for (const keyword of keywords) {
             if (queryLower.includes(keyword)) {
@@ -121,7 +104,6 @@ function parseQueryIntelligently(query) {
             }
         }
     }
-    
     if (filters.price_max || filters.price_min) {
         filters.intent = 'price-focused';
     } else if (filters.features.length > 0) {
@@ -129,10 +111,8 @@ function parseQueryIntelligently(query) {
     } else if (filters.rating_min) {
         filters.intent = 'quality-focused';
     }
-    
     return filters;
 }
-
 function parseQueryWithNLP(query) {
     if (!query || typeof query !== 'string') {
         return {
@@ -148,11 +128,9 @@ function parseQueryWithNLP(query) {
             intent: 'general'
         };
     }
-
     const winkNlp = getNLPInstance();
     const processedQuery = preprocessQuery(query);
     const queryLower = processedQuery.toLowerCase();
-    
     const filters = {
         category: null,
         brand: null,
@@ -165,7 +143,6 @@ function parseQueryWithNLP(query) {
         keywords: [],
         intent: 'general'
     };
-
     const brandEntities = {
         "nike": ["nike", "nike air"],
         "adidas": ["adidas", "originals"],
@@ -188,7 +165,6 @@ function parseQueryWithNLP(query) {
         "nokia": ["nokia"],
         "boat": ["boat", "boAt"]
     };
-
     const colorEntities = {
         "black": ["black", "dark"],
         "white": ["white", "cream"],
@@ -202,7 +178,6 @@ function parseQueryWithNLP(query) {
         "grey": ["grey", "gray", "silver"],
         "orange": ["orange"]
     };
-
     const categoryEntities = {
         "clothing": ["shirt", "t-shirt", "t shirt", "tshirt", "polo", "blouse", "top", "dress", "pant", "pants", "jean", "jeans", "trouser", "short", "shorts", "jacket", "coat", "hoodie", "sweatshirt", "sweater", "skirt", "clothing", "clothes", "apparel", "wear"],
         "footwear": ["shoes", "footwear", "sneakers", "boots", "sandals", "heels", "flats", "running shoes", "athletic shoes", "shoe", "sneaker"],
@@ -212,7 +187,6 @@ function parseQueryWithNLP(query) {
         "tablets": ["tablet", "ipad"],
         "smartwatches": ["smartwatch", "watch", "wearable"]
     };
-
     const featureKeywords = {
         charging: ["fast charging", "wireless charging", "quick charge", "rapid charge"],
         display: ["amoled", "oled", "lcd", "retina", "hd", "full hd", "4k"],
@@ -223,22 +197,18 @@ function parseQueryWithNLP(query) {
         design: ["waterproof", "water resistant", "durable", "lightweight"],
         performance: ["gaming", "processor", "chipset", "performance"]
     };
-
     if (winkNlp) {
         try {
             const doc = winkNlp.readDoc(query);
             const tokens = doc.tokens().out();
             const raw = query.toLowerCase();
-            
             let foundNumbers = [];
             tokens.forEach((token, idx) => {
                 if (/^\d+(k|K)?$/.test(token)) {
                     let price = token.toLowerCase().endsWith('k') ? parseInt(token) * 1000 : parseInt(token);
-                    
                     let prevToken = idx > 0 ? tokens[idx - 1].toLowerCase() : '';
                     let prevToken2 = idx > 1 ? tokens[idx - 2].toLowerCase() : '';
                     let nextToken = idx < tokens.length - 1 ? tokens[idx + 1].toLowerCase() : '';
-                    
                     foundNumbers.push({
                         value: price,
                         prevToken,
@@ -248,18 +218,15 @@ function parseQueryWithNLP(query) {
                     });
                 }
             });
-
             for (const num of foundNumbers) {
                 const priceMaxWords = ["under", "below", "less", "max", "within", "upto", "up", "budget"];
                 const priceMinWords = ["over", "above", "more", "min", "minimum", "from", "starting", "at"];
                 const ratingWords = ["star", "stars", "rating", "rated"];
-                
                 if (num.value <= 5 && (ratingWords.includes(num.prevToken) || ratingWords.includes(num.nextToken) || 
                     num.context.includes('star') || num.context.includes('rating'))) {
                     filters.rating_min = num.value;
                     continue;
                 }
-                
                 if (num.value >= 100) { 
                     if (priceMaxWords.includes(num.prevToken) || priceMaxWords.includes(num.prevToken2)) {
                         filters.price_max = num.value;
@@ -272,7 +239,6 @@ function parseQueryWithNLP(query) {
                     }
                 }
             }
-
             for (const [brand, variants] of Object.entries(brandEntities)) {
                 for (const variant of variants) {
                     if (raw.includes(variant)) {
@@ -282,7 +248,6 @@ function parseQueryWithNLP(query) {
                 }
                 if (filters.brand) break;
             }
-
             for (const [color, variants] of Object.entries(colorEntities)) {
                 for (const variant of variants) {
                     if (raw.includes(variant)) {
@@ -292,7 +257,6 @@ function parseQueryWithNLP(query) {
                 }
                 if (filters.color) break;
             }
-
             for (const [category, variants] of Object.entries(categoryEntities)) {
                 for (const variant of variants) {
                     if (raw.includes(variant)) {
@@ -302,7 +266,6 @@ function parseQueryWithNLP(query) {
                 }
                 if (filters.category) break;
             }
-
             for (const [featureType, keywords] of Object.entries(featureKeywords)) {
                 for (const keyword of keywords) {
                     if (raw.includes(keyword)) {
@@ -310,27 +273,21 @@ function parseQueryWithNLP(query) {
                     }
                 }
             }
-
             doc.tokens().each(token => {
                 const pos = token.out('its.pos');
                 const rawText = token.out().toLowerCase();
-                
                 if (["NOUN", "ADJ", "PROPN"].includes(pos) && rawText.length > 2) {
                     filters.keywords.push(rawText);
                 }
             });
-
             const originalWords = query.toLowerCase().split(/\s+/).filter(word => word.length > 2);
             filters.keywords.push(...originalWords);
-            
             filters.keywords = [...new Set(filters.keywords)];
-
         } catch (error) {
             filters.keywords = query.toLowerCase().split(/\s+/).filter(word => word.length > 2);
         }
     } else {
         filters.keywords = query.toLowerCase().split(/\s+/).filter(word => word.length > 2);
-        
         const numbers = query.match(/\d+/g);
         if (numbers) {
             const largestNum = Math.max(...numbers.map(n => parseInt(n)));
@@ -339,7 +296,6 @@ function parseQueryWithNLP(query) {
             }
         }
     }
-
     if (filters.price_max || filters.price_min) {
         filters.intent = 'price-focused';
     } else if (filters.features.length > 0) {
@@ -349,10 +305,8 @@ function parseQueryWithNLP(query) {
     } else if (filters.category) {
         filters.intent = 'category-focused';
     }
-
     return filters;
 }
-
 function analyzeQuery(query) {
     const analysis = parseQueryWithNLP(query);
     return {
@@ -364,7 +318,6 @@ function analyzeQuery(query) {
         filters: analysis
     };
 }
-
 module.exports = {
     parseQueryIntelligently,
     parseQueryWithNLP,

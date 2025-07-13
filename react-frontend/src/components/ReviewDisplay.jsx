@@ -1,5 +1,4 @@
 import PropTypes from 'prop-types';
-
 const ReviewDisplay = ({ reviews, maxDisplayed = 3, onViewAllClick }) => {
   if (!reviews || reviews.length === 0) {
     return (
@@ -8,10 +7,8 @@ const ReviewDisplay = ({ reviews, maxDisplayed = 3, onViewAllClick }) => {
       </div>
     );
   }
-
   const displayedReviews = reviews.slice(0, maxDisplayed);
   const hasMoreReviews = reviews.length > maxDisplayed;
-
   return (
     <div className="space-y-4">
       {displayedReviews.map((review, index) => (
@@ -31,20 +28,16 @@ const ReviewDisplay = ({ reviews, maxDisplayed = 3, onViewAllClick }) => {
               {review.date ? new Date(review.date).toLocaleDateString() : 'Recent review'}
             </span>
           </div>
-          
           {review.title && (
             <h4 className="font-medium text-gray-800 mb-1">{review.title}</h4>
           )}
-          
           <p className="text-gray-700">{review.text || 'No review text available'}</p>
-          
           {review.pros && (
             <div className="mt-2">
               <span className="text-green-600 font-medium text-sm">Pros:</span>
               <p className="text-sm text-gray-600">{review.pros}</p>
             </div>
           )}
-          
           {review.cons && (
             <div className="mt-2">
               <span className="text-red-600 font-medium text-sm">Cons:</span>
@@ -53,7 +46,6 @@ const ReviewDisplay = ({ reviews, maxDisplayed = 3, onViewAllClick }) => {
           )}
         </div>
       ))}
-      
       {hasMoreReviews && (
         <div className="text-center mt-4">
           <button 
@@ -67,7 +59,6 @@ const ReviewDisplay = ({ reviews, maxDisplayed = 3, onViewAllClick }) => {
     </div>
   );
 };
-
 ReviewDisplay.propTypes = {
   reviews: PropTypes.arrayOf(
     PropTypes.shape({
@@ -83,5 +74,4 @@ ReviewDisplay.propTypes = {
   maxDisplayed: PropTypes.number,
   onViewAllClick: PropTypes.func
 };
-
 export default ReviewDisplay; 

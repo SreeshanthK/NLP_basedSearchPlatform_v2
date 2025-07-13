@@ -1,14 +1,16 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
   font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
+  line-height: 1.6;
   font-weight: 400;
 
   color-scheme: light;
-  color: #333333;
+  color: #1f2937;
   background-color: #f8fafc;
 
   font-synthesis: none;
@@ -17,14 +19,8 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-a {
-  font-weight: 500;
-  color: #3b82f6;
-  text-decoration: inherit;
-}
-
-a:hover {
-  color: #2563eb;
+* {
+  box-sizing: border-box;
 }
 
 body {
@@ -32,46 +28,231 @@ body {
   min-width: 320px;
   min-height: 100vh;
   display: block;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background-attachment: fixed;
 }
 
-h1 {
-  font-size: 2.5rem;
-  line-height: 1.2;
-  font-weight: 600;
+::-webkit-scrollbar {
+  width: 8px;
 }
 
-button {
-  border-radius: 6px;
-  border: 1px solid transparent;
-  padding: 0.5em 1em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #f1f5f9;
-  cursor: pointer;
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+* {
   transition: all 0.2s ease;
 }
 
-button:hover {
-  background-color: #e2e8f0;
-  border-color: #cbd5e1;
+.glass {
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
 }
 
+.gradient-text {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.line-clamp-1 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+
+.line-clamp-2 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.line-clamp-3 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 2s ease-in-out infinite;
+}
+
+@keyframes pulse-subtle {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes backdropFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal-enter {
+  animation: modalFadeIn 0.3s ease-out;
+}
+
+.backdrop-enter {
+  animation: backdropFadeIn 0.3s ease-out;
+}
+
+/* Focus styles */
 button:focus,
-button:focus-visible {
+input:focus,
+textarea:focus,
+select:focus {
   outline: 2px solid #3b82f6;
   outline-offset: 2px;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
+/* Custom button styles */
+.btn-primary {
+  @apply bg-gradient-to-r from-blue-600 to-purple-600 text-white font-medium py-3 px-6 rounded-lg shadow-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-300 transform hover:scale-105;
+}
+
+.btn-secondary {
+  @apply bg-white text-gray-700 font-medium py-3 px-6 rounded-lg shadow-md border border-gray-200 hover:bg-gray-50 transition-all duration-300;
+}
+
+/* Card styles */
+.card {
+  @apply bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-200/50 hover:shadow-xl transition-all duration-300;
+}
+
+/* Loading animation */
+.loading-shimmer {
+  background: linear-gradient(90deg, #f0f0f0 25%, transparent 37%, #f0f0f0 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200px 0;
   }
-  a:hover {
-    color: #747bff;
+  100% {
+    background-position: calc(200px + 100%) 0;
   }
-  button {
-    background-color: #f9f9f9;
+}
+
+.shimmer {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200px 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* Smooth hover effects */
+.product-card-hover {
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.product-card-hover:hover {
+  transform: translateY(-8px) scale(1.02);
+}
+
+/* Modal backdrop animation */
+.modal-backdrop {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.modal-content {
+  animation: slideUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -48%) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.btn-hover-scale {
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.btn-hover-scale:hover {
+  transform: scale(1.05);
+}
+
+.btn-hover-scale:active {
+  transform: scale(0.98);
+}
+
+.gradient-text {
+  background: linear-gradient(-45deg, #667eea, #764ba2, #f093fb, #f5576c);
+  background-size: 400% 400%;
+  animation: gradientShift 4s ease infinite;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+@keyframes gradientShift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
   }
 }

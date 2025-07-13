@@ -1,17 +1,14 @@
 const winkNLP = require('wink-nlp');
 const model = require('wink-eng-lite-web-model');
-
 let winkNlp;
 try {
     winkNlp = winkNLP(model);
 } catch (error) {
     winkNlp = null;
 }
-
 function getNLPInstance() {
     return winkNlp;
 }
-
 function analyzeQueryWithNLP(query) {
     if (!winkNlp) {
         return {
@@ -22,29 +19,23 @@ function analyzeQueryWithNLP(query) {
             confidence: 0
         };
     }
-
     try {
         const doc = winkNlp.readDoc(query);
-        
         const tokens = [];
         const entities = [];
         const brands = [];
         const categories = [];
-        
         doc.tokens().each(token => {
             const text = token.out().toLowerCase();
             tokens.push(text);
-            
             if (token.out(winkNlp.its.pos) === 'NNP' || token.out(winkNlp.its.pos) === 'NNPS') {
                 brands.push(text);
             }
-            
             const categoryWords = ['shoes', 'phone', 'laptop', 'shirt', 'dress', 'jeans', 'tablet'];
             if (categoryWords.includes(text)) {
                 categories.push(text);
             }
         });
-
         if (doc.entities) {
             doc.entities().each(entity => {
                 entities.push({
@@ -54,7 +45,6 @@ function analyzeQueryWithNLP(query) {
                 });
             });
         }
-
         return {
             tokens,
             entities,
@@ -73,25 +63,20 @@ function analyzeQueryWithNLP(query) {
         };
     }
 }
-
 function calculateRelevanceScore(result, nlpAnalysis, semanticAnalysis) {
     if (!result || !nlpAnalysis) return 0;
-
     let score = 0;
     const resultText = `${result.name} ${result.brand} ${result.category} ${result.subcategory}`.toLowerCase();
-    
     nlpAnalysis.tokens.forEach(token => {
         if (resultText.includes(token)) {
             score += 2;
         }
     });
-    
     nlpAnalysis.brands.forEach(brand => {
         if (result.brand && result.brand.toLowerCase().includes(brand)) {
             score += 10;
         }
     });
-    
     nlpAnalysis.categories.forEach(category => {
         if (result.category && result.category.toLowerCase().includes(category)) {
             score += 5;
@@ -100,15 +85,12 @@ function calculateRelevanceScore(result, nlpAnalysis, semanticAnalysis) {
             score += 5;
         }
     });
-    
     if (result.intent_match) {
         score += 15;
     }
-    
     if (result.color_match) {
         score += 10;
     }
-    
     if (semanticAnalysis.detectedIntents.includes('FOOTWEAR_SEARCH') && result.category === 'electronics') {
         score -= 30;
     }
@@ -118,10 +100,8 @@ function calculateRelevanceScore(result, nlpAnalysis, semanticAnalysis) {
     if (semanticAnalysis.detectedIntents.includes('CLOTHING_SEARCH') && result.category === 'electronics') {
         score -= 30;
     }
-    
     return score;
 }
-
 module.exports = {
     getNLPInstance,
     analyzeQueryWithNLP,

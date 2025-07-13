@@ -1,14 +1,11 @@
 import { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { analyzeReviews } from '../services/api';
-
 const ReviewAnalyzer = ({ reviews }) => {
   const [summary, setSummary] = useState('');
   const [categoryRatings, setCategoryRatings] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  // Categories to display
   const categories = [
     { id: 'quality', name: 'Quality' },
     { id: 'value', name: 'Value for Money' },
@@ -16,7 +13,6 @@ const ReviewAnalyzer = ({ reviews }) => {
     { id: 'appearance', name: 'Appearance' },
     { id: 'functionality', name: 'Functionality' }
   ];
-
   useEffect(() => {
     const fetchAnalysis = async () => {
       if (!reviews || reviews.length === 0) {
@@ -24,17 +20,11 @@ const ReviewAnalyzer = ({ reviews }) => {
         setLoading(false);
         return;
       }
-
       try {
         setLoading(true);
-        
-        // Call backend API for analysis
         const analysisResult = await analyzeReviews(reviews);
-        
-        // Update state with analysis results
         setSummary(analysisResult.summary || 'Analysis completed.');
         setCategoryRatings(analysisResult.categoryRatings || {});
-        
         setLoading(false);
       } catch (err) {
         console.error('Error analyzing reviews:', err);
@@ -42,10 +32,8 @@ const ReviewAnalyzer = ({ reviews }) => {
         setLoading(false);
       }
     };
-
     fetchAnalysis();
   }, [reviews]);
-
   if (loading) {
     return (
       <div className="p-4 bg-gray-50 rounded-lg animate-pulse">
@@ -54,7 +42,6 @@ const ReviewAnalyzer = ({ reviews }) => {
       </div>
     );
   }
-
   if (error) {
     return (
       <div className="p-4 bg-red-50 text-red-600 rounded-lg">
@@ -62,7 +49,6 @@ const ReviewAnalyzer = ({ reviews }) => {
       </div>
     );
   }
-
   if (!reviews || reviews.length === 0) {
     return (
       <div className="p-4 bg-gray-50 text-gray-500 rounded-lg">
@@ -70,14 +56,12 @@ const ReviewAnalyzer = ({ reviews }) => {
       </div>
     );
   }
-
   return (
     <div className="bg-white rounded-lg">
       <div className="mb-4">
         <h4 className="font-semibold text-gray-800 mb-2">Review Summary</h4>
         <p className="text-gray-700">{summary}</p>
       </div>
-      
       <div className="mb-4">
         <h4 className="font-semibold text-gray-800 mb-2">Category Ratings</h4>
         <div className="space-y-2">
@@ -100,8 +84,6 @@ const ReviewAnalyzer = ({ reviews }) => {
     </div>
   );
 };
-
-// Helper function to get color based on rating
 const getRatingColor = (rating) => {
   if (rating >= 4.5) return 'bg-green-500';
   if (rating >= 4) return 'bg-green-400';
@@ -111,7 +93,6 @@ const getRatingColor = (rating) => {
   if (rating >= 2) return 'bg-orange-400';
   return 'bg-red-500';
 };
-
 ReviewAnalyzer.propTypes = {
   reviews: PropTypes.arrayOf(
     PropTypes.shape({
@@ -123,5 +104,4 @@ ReviewAnalyzer.propTypes = {
     })
   )
 };
-
 export default ReviewAnalyzer; 
