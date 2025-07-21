@@ -3,11 +3,10 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  server: {
-    port: 5173,
+  server: {\
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        target: 'https://search-relevance-optimizer-backend.onrender.com',
         changeOrigin: true,
       },
     },
