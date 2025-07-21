@@ -2,18 +2,21 @@ import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import SearchBar from '../components/SearchBar';
 import ProductCard from '../components/ProductCard';
-import { searchProducts, getAllProducts } from '../services/api';
+import { searchProducts, getAllProducts, authService } from '../services/api';
 const Search = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [allResults, setAllResults] = useState([]); 
+  const [allResults, setAllResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [activeSearch, setActiveSearch] = useState('');
+  const [autoAppliedFilters, setAutoAppliedFilters] = useState(null);
+  const [showLoginDialog, setShowLoginDialog] = useState(false);
+  const [loginError, setLoginError] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
   const [filters, setFilters] = useState({
-    priceRange: { min: 0, max: 999999 }, 
-    rating: 0 
+    priceRange: { min: 0, max: 999999 },
   });
-  const [sortBy, setSortBy] = useState('relevance'); 
+  const [sortBy, setSortBy] = useState('relevance');
   useEffect(() => {
     const initialQuery = searchParams.get('query');
     if (initialQuery) {
@@ -47,9 +50,20 @@ const Search = () => {
   };
   const performSearch = async (query) => {
     if (!query.trim()) return;
+    if (!authService.isAuthenticated()) {
+      setShowLoginDialog(true);
+      setError('Please login to search products');
+      return;
+    }
     setLoading(true);
     setError(null);
     setActiveSearch(query);
+    console.log('🔄 Resetting filters to default for new search');
+    setFilters({
+      priceRange: { min: 0, max: 999999 },
+      rating: 0
+    });
+    setAutoAppliedFilters(null);
     try {
       const results = await searchProducts(query, {});
       let resultsArray = [];
@@ -61,12 +75,48 @@ const Search = () => {
         resultsArray = results.data;
       }
       setAllResults(Array.isArray(resultsArray) ? resultsArray : []);
+      if (results.extractedFilters) {
+        console.log('🤖 Auto-applying extracted filters:', results.extractedFilters);
+        const appliedFilters = [];
+        setFilters(prevFilters => {
+          const newFilters = {
+            priceRange: { min: 0, max: 999999 },
+            rating: 0
+          };
+          if (results.extractedFilters.priceRange) {
+            if (results.extractedFilters.priceRange.min !== undefined && results.extractedFilters.priceRange.min > 0) {
+              newFilters.priceRange.min = results.extractedFilters.priceRange.min;
+              appliedFilters.push(`Min Price: ₹${results.extractedFilters.priceRange.min.toLocaleString()}`);
+              console.log(`💰 Auto-set price MIN: ${results.extractedFilters.priceRange.min}`);
+            }
+            if (results.extractedFilters.priceRange.max !== undefined && results.extractedFilters.priceRange.max < 999999) {
+              newFilters.priceRange.max = results.extractedFilters.priceRange.max;
+              appliedFilters.push(`Max Price: ₹${results.extractedFilters.priceRange.max.toLocaleString()}`);
+              console.log(`💰 Auto-set price MAX: ${results.extractedFilters.priceRange.max}`);
+            }
+          }
+          console.log('✅ Final applied filters:', newFilters);
+          return newFilters;
+        });
+        if (appliedFilters.length > 0) {
+          setAutoAppliedFilters(appliedFilters);
+          setTimeout(() => setAutoAppliedFilters(null), 8000);
+        }
+        if (results.nlpAnalysis?.priceDetected) {
+          console.log('✅ Price filters automatically applied from your query!');
+        }
+      }
       const newParams = new URLSearchParams();
       newParams.set('query', query);
       setSearchParams(newParams);
     } catch (err) {
       console.error('Search error:', err);
-      setError('An error occurred while searching. Please try again.');
+      if (err.response?.status === 401 || err.message?.includes('401') || err.message?.includes('unauthorized')) {
+        setShowLoginDialog(true);
+        setError('Please login to search products');
+      } else {
+        setError('An error occurred while searching. Please try again.');
+      }
       setAllResults([]);
     } finally {
       setLoading(false);
@@ -127,23 +177,64 @@ const Search = () => {
   const handleRatingChange = (rating) => {
     setFilters(prev => ({ ...prev, rating }));
   };
+  const handleDemoLogin = async () => {
+    setLoginLoading(true);
+    setLoginError('');
+    try {
+      await authService.login('07ankur007@gmail.com', '1234567');
+      setShowLoginDialog(false);
+      if (activeSearch) {
+        performSearch(activeSearch);
+      }
+    } catch (error) {
+      setLoginError(error.message || 'Login failed');
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+  const handleCloseLoginDialog = () => {
+    setShowLoginDialog(false);
+    setLoginError('');
+  };
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50">
-      {}
       <div className="bg-white shadow-sm border-b border-gray-100 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <SearchBar onSearch={performSearch} initialQuery={activeSearch} />
         </div>
       </div>
+      {autoAppliedFilters && autoAppliedFilters.length > 0 && (
+        <div className="bg-blue-50 border border-blue-200 max-w-7xl mx-auto px-4 py-3">
+          <div className="flex items-center gap-3">
+            <div className="flex-shrink-0">
+              <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="text-sm text-blue-800">
+                <span className="font-medium">Smart filters applied:</span> {autoAppliedFilters.join(', ')}
+              </p>
+            </div>
+            <button
+              onClick={() => setAutoAppliedFilters(null)}
+              className="flex-shrink-0 text-blue-600 hover:text-blue-800 p-1"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
       <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="flex gap-6">
-          {}
           <div className="w-64 flex-shrink-0">
             <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6 sticky top-24">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-lg font-bold text-gray-900">Filters</h2>
                 {(filters.priceRange.min > 0 || filters.priceRange.max < 999999 || filters.rating > 0) && (
-                  <button 
+                  <button
                     onClick={clearFilters}
                     className="text-blue-600 text-sm hover:text-blue-800 font-medium"
                   >
@@ -151,7 +242,6 @@ const Search = () => {
                   </button>
                 )}
               </div>
-              {}
               <div className="mb-6">
                 <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -186,7 +276,6 @@ const Search = () => {
                   <span>₹{filters.priceRange.max}</span>
                 </div>
               </div>
-              {}
               <div>
                 <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -205,8 +294,8 @@ const Search = () => {
                         className="sr-only"
                       />
                       <div className={`w-4 h-4 rounded-full border-2 mr-3 transition-all duration-200 ${
-                        filters.rating === rating 
-                          ? 'border-blue-500 bg-blue-500' 
+                        filters.rating === rating
+                          ? 'border-blue-500 bg-blue-500'
                           : 'border-gray-300 group-hover:border-blue-400'
                       }`}>
                         {filters.rating === rating && (
@@ -233,9 +322,7 @@ const Search = () => {
               </div>
             </div>
           </div>
-          {}
           <div className="flex-1">
-            {}
             {!loading && filteredAndSortedResults.length > 0 && (
               <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4 mb-6">
                 <div className="flex justify-between items-center">
@@ -245,7 +332,6 @@ const Search = () => {
                       <span> for "<span className="font-semibold text-gray-900">{activeSearch}</span>"</span>
                     )}
                   </div>
-                  {}
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-gray-600">Sort by:</span>
                     <select
@@ -262,7 +348,6 @@ const Search = () => {
                 </div>
               </div>
             )}
-            {}
             {loading && (
               <div className="flex items-center justify-center py-12">
                 <div className="text-center">
@@ -271,7 +356,6 @@ const Search = () => {
                 </div>
               </div>
             )}
-            {}
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
                 <svg className="w-12 h-12 text-red-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -279,7 +363,7 @@ const Search = () => {
                 </svg>
                 <h3 className="text-lg font-semibold text-red-800 mb-2">Search Error</h3>
                 <p className="text-red-600 mb-4">{error}</p>
-                <button 
+                <button
                   onClick={() => performSearch(activeSearch)}
                   className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
                 >
@@ -287,7 +371,6 @@ const Search = () => {
                 </button>
               </div>
             )}
-            {}
             {!loading && !error && activeSearch && filteredAndSortedResults.length === 0 && allResults.length === 0 && (
               <div className="text-center py-12">
                 <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -301,7 +384,6 @@ const Search = () => {
                 </p>
               </div>
             )}
-            {/* Filtered Out Results */}
             {!loading && !error && filteredAndSortedResults.length === 0 && allResults.length > 0 && (
               <div className="text-center py-12">
                 <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -313,7 +395,7 @@ const Search = () => {
                   <br />
                   Try adjusting your price range or rating requirements.
                 </p>
-                <button 
+                <button
                   onClick={clearFilters}
                   className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
                 >
@@ -321,7 +403,6 @@ const Search = () => {
                 </button>
               </div>
             )}
-            {/* Search Prompt */}
             {!loading && !error && !activeSearch && (
               <div className="text-center py-12">
                 <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -331,10 +412,8 @@ const Search = () => {
                 <p className="text-gray-600">Enter keywords above to find products</p>
               </div>
             )}
-            {/* Results Grid */}
             {!loading && !error && filteredAndSortedResults.length > 0 && (
               <>
-                {/* Information Banner */}
                 <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 mb-6">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -369,6 +448,59 @@ const Search = () => {
           </div>
         </div>
       </div>
+      {showLoginDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4 shadow-2xl">
+            <div className="text-center">
+              <div className="mb-4">
+                <svg className="w-16 h-16 text-blue-500 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m0 0v2m0-2h2m-2 0H10m10-7a7 7 0 1 1-14 0 7 7 0 0 1 14 0z" />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Login Required</h2>
+              <p className="text-gray-600 mb-6">
+                Please login to search products. Use our demo account to explore the platform.
+              </p>
+              {loginError && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-red-600 text-sm">{loginError}</p>
+                </div>
+              )}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                <h3 className="font-semibold text-blue-900 mb-2">Demo Account</h3>
+                <p className="text-blue-700 text-sm mb-1">Email: 07ankur007@gmail.com</p>
+                <p className="text-blue-700 text-sm">Password: 1234567</p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleCloseLoginDialog}
+                  disabled={loginLoading}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDemoLogin}
+                  disabled={loginLoading}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center"
+                >
+                  {loginLoading ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Logging in...
+                    </>
+                  ) : (
+                    'Login with Demo Account'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

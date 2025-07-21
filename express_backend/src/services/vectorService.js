@@ -2,6 +2,7 @@ const natural = require('natural');
 const fs = require('fs');
 const path = require('path');
 const cosineSimilarity = require('cosine-similarity');
+
 class VectorSearchService {
     constructor() {
         this.productVectors = new Map();
@@ -10,22 +11,22 @@ class VectorSearchService {
         this.vectorFilePath = path.join(__dirname, '../../data/vectors.json');
         this.tfidf = new natural.TfIdf();
     }
+
     async initialize() {
         try {
-            console.log('Initializing Vector Search Service...');
+
             const dataDir = path.dirname(this.vectorFilePath);
             if (!fs.existsSync(dataDir)) {
                 fs.mkdirSync(dataDir, { recursive: true });
             }
+
             if (fs.existsSync(this.vectorFilePath)) {
-                console.log('Loading existing vectors...');
                 const data = JSON.parse(fs.readFileSync(this.vectorFilePath, 'utf8'));
                 this.productVectors = new Map(data.vectors || []);
                 this.vocabulary = new Set(data.vocabulary || []);
-                console.log(`Loaded ${this.productVectors.size} product vectors`);
             }
+
             this.isInitialized = true;
-            console.log('Vector Search Service initialized successfully');
             return true;
         } catch (error) {
             console.error('Failed to initialize Vector Search:', error);
@@ -33,6 +34,7 @@ class VectorSearchService {
             return false;
         }
     }
+
     preprocessText(text) {
         if (!text) return '';
         return text
@@ -41,35 +43,45 @@ class VectorSearchService {
             .replace(/\s+/g, ' ')
             .trim();
     }
+
     extractKeyWords(text) {
         const processedText = this.preprocessText(text);
         const tokenizer = new natural.WordTokenizer();
         const tokens = tokenizer.tokenize(processedText) || [];
+
         const stopWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'can', 'this', 'that', 'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him', 'her', 'us', 'them']);
-        const filteredTokens = tokens.filter(token => 
-            token.length > 2 && 
+
+        const filteredTokens = tokens.filter(token =>
+            token.length > 2 &&
             !stopWords.has(token.toLowerCase()) &&
             !/^\d+$/.test(token)
         );
+
         return filteredTokens.map(token => natural.PorterStemmer.stem(token));
     }
+
     generateSmartVector(text) {
         const keywords = this.extractKeyWords(text);
         keywords.forEach(keyword => this.vocabulary.add(keyword));
+
         const vocabArray = Array.from(this.vocabulary).sort();
         const vectorSize = Math.min(500, Math.max(100, vocabArray.length));
         const vector = new Array(vectorSize).fill(0);
+
         const termFreq = {};
         keywords.forEach(keyword => {
             termFreq[keyword] = (termFreq[keyword] || 0) + 1;
         });
+
         const totalTerms = keywords.length || 1;
+
         Object.entries(termFreq).forEach(([term, freq]) => {
             const index = vocabArray.indexOf(term);
             if (index !== -1 && index < vector.length) {
                 vector[index] = (freq / totalTerms) + 0.1;
             }
         });
+
         const categoryBoosts = {
             'phone': ['mobil', 'smartphon', 'iphon', 'samsung', 'android', 'cell'],
             'laptop': ['comput', 'notebook', 'macbook', 'dell', 'hp', 'lenovo'],
@@ -79,6 +91,7 @@ class VectorSearchService {
             'book': ['novel', 'textbook', 'guid', 'manual', 'read'],
             'sport': ['fit', 'exercis', 'gym', 'athlet', 'train']
         };
+
         keywords.forEach(keyword => {
             Object.entries(categoryBoosts).forEach(([category, synonyms]) => {
                 if (synonyms.some(syn => keyword.includes(syn) || syn.includes(keyword))) {
@@ -91,19 +104,24 @@ class VectorSearchService {
                 }
             });
         });
+
         const magnitude = Math.sqrt(vector.reduce((sum, val) => sum + val * val, 0));
         if (magnitude > 0) {
             for (let i = 0; i < vector.length; i++) {
                 vector[i] /= magnitude;
             }
         }
+
         return vector;
     }
+
     async indexProduct(product) {
         if (!this.isInitialized) {
             await this.initialize();
         }
+
         try {
+
             const searchableText = [
                 product.name || '',
                 product.title || '',
@@ -117,7 +135,9 @@ class VectorSearchService {
                 (product.tags || []).join(' '),
                 (product.features || []).join(' ')
             ].filter(Boolean).join(' ');
+
             const vector = this.generateSmartVector(searchableText);
+
             this.productVectors.set(product._id.toString(), {
                 vector: vector,
                 metadata: {
@@ -136,61 +156,72 @@ class VectorSearchService {
                 },
                 searchText: searchableText.toLowerCase()
             });
-            console.log(`Indexed product: ${product.name || product.title}`);
+
             return true;
         } catch (error) {
             console.error('Error indexing product:', error);
             return false;
         }
     }
-    async searchSimilar(query, limit = 50, threshold = 0.001) {
+
+    async searchSimilar(query, limit = 50, threshold = 0.0001) {
         if (!this.isInitialized) {
             await this.initialize();
         }
+
         if (this.productVectors.size === 0) {
-            console.log('No products indexed for vector search');
             return [];
         }
+
         try {
             const queryVector = this.generateSmartVector(query);
             const queryKeywords = this.extractKeyWords(query);
             const results = [];
+
             for (const [productId, productData] of this.productVectors.entries()) {
                 try {
                     let similarity = cosineSimilarity(queryVector, productData.vector);
-                    let keywordBonus = 0;
+
+                    let semanticBonus = 0;
+
                     queryKeywords.forEach(keyword => {
+
                         if (productData.searchText.includes(keyword)) {
-                            keywordBonus += 0.4;
+                            semanticBonus += 0.5;
                         }
+
                         const searchWords = productData.searchText.split(' ');
                         searchWords.forEach(word => {
                             if (word.includes(keyword) || keyword.includes(word)) {
-                                keywordBonus += 0.2;
+                                semanticBonus += 0.3;
                             }
-                            if (Math.abs(word.length - keyword.length) <= 2) {
+
+                            if (Math.abs(word.length - keyword.length) <= 3) {
                                 const editDistance = this.levenshteinDistance(word, keyword);
-                                if (editDistance <= 2) {
-                                    keywordBonus += 0.15;
+                                if (editDistance <= 3) {
+                                    semanticBonus += 0.2;
                                 }
                             }
                         });
                     });
+
                     queryKeywords.forEach(keyword => {
                         if (productData.metadata.category && productData.metadata.category.toLowerCase().includes(keyword)) {
-                            keywordBonus += 0.3;
+                            semanticBonus += 0.3;
                         }
                         if (productData.metadata.brand && productData.metadata.brand.toLowerCase().includes(keyword)) {
-                            keywordBonus += 0.3;
+                            semanticBonus += 0.3;
                         }
                     });
-                    const finalSimilarity = Math.min(1.0, similarity + keywordBonus);
-                    if (finalSimilarity >= threshold || similarity >= 0.001) {
+
+                    const finalSimilarity = Math.min(1.0, similarity + semanticBonus);
+
+                    if (finalSimilarity >= threshold || similarity >= 0.0001) {
                         results.push({
                             productId: productId,
                             similarity: finalSimilarity,
                             baseSimilarity: similarity,
-                            keywordBonus: keywordBonus,
+                            semanticBonus: semanticBonus,
                             metadata: productData.metadata
                         });
                     }
@@ -198,14 +229,17 @@ class VectorSearchService {
                     console.error(`Error calculating similarity for product ${productId}:`, err);
                 }
             }
+
             return results
                 .sort((a, b) => b.similarity - a.similarity)
                 .slice(0, limit);
+
         } catch (error) {
             console.error('Error in vector search:', error);
             return [];
         }
     }
+
     levenshteinDistance(str1, str2) {
         const matrix = [];
         for (let i = 0; i <= str2.length; i++) {
@@ -229,23 +263,26 @@ class VectorSearchService {
         }
         return matrix[str2.length][str1.length];
     }
+
     async bulkIndexProducts(products) {
         if (!this.isInitialized) {
             await this.initialize();
         }
-        console.log(`Bulk indexing ${products.length} products...`);
+
         let successCount = 0;
+
         for (let i = 0; i < products.length; i++) {
             const success = await this.indexProduct(products[i]);
             if (success) successCount++;
+
             if ((i + 1) % 10 === 0) {
-                console.log(`Indexed ${i + 1}/${products.length} products`);
             }
         }
+
         await this.saveVectors();
-        console.log(`Bulk indexing completed. Successfully indexed ${successCount}/${products.length} products`);
         return successCount;
     }
+
     async saveVectors() {
         try {
             const data = {
@@ -253,25 +290,27 @@ class VectorSearchService {
                 vocabulary: Array.from(this.vocabulary),
                 timestamp: new Date().toISOString()
             };
+
             fs.writeFileSync(this.vectorFilePath, JSON.stringify(data, null, 2));
-            console.log(`Saved ${this.productVectors.size} vectors to disk`);
         } catch (error) {
             console.error('Error saving vectors:', error);
         }
     }
+
     async getCollectionInfo() {
-        return { 
+        return {
             totalProducts: this.productVectors.size,
             vocabularySize: this.vocabulary.size,
             isInitialized: this.isInitialized
         };
     }
+
     clearIndex() {
         this.productVectors.clear();
         this.vocabulary.clear();
         this.tfidf = new natural.TfIdf();
-        console.log('Cleared vector search index');
     }
+
     async search(query, limit = 50) {
         const results = await this.searchSimilar(query, limit);
         return results.map(result => ({
@@ -283,13 +322,16 @@ class VectorSearchService {
             score: result.similarity
         }));
     }
+
     getIndexStats() {
         const categories = new Set();
         const brands = new Set();
+
         for (const [productId, productData] of this.productVectors) {
             if (productData.category) categories.add(productData.category);
             if (productData.brand) brands.add(productData.brand);
         }
+
         return {
             totalDocuments: this.productVectors.size,
             totalTerms: this.vocabulary.size,
@@ -297,13 +339,14 @@ class VectorSearchService {
             brands: Array.from(brands)
         };
     }
+
     async clearVectors() {
         this.productVectors.clear();
         this.vocabulary.clear();
         if (fs.existsSync(this.vectorFilePath)) {
             fs.unlinkSync(this.vectorFilePath);
         }
-        console.log('Cleared all vectors');
     }
 }
+
 module.exports = new VectorSearchService();

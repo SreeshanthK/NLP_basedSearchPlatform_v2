@@ -69,8 +69,8 @@ const ReviewAnalyzer = ({ reviews }) => {
             <div key={category.id} className="flex items-center">
               <span className="w-32 text-sm text-gray-600">{category.name}:</span>
               <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                <div 
-                  className={`h-full rounded-full ${getRatingColor(categoryRatings[category.id] || 0)}`} 
+                <div
+                  className={`h-full rounded-full ${getRatingColor(categoryRatings[category.id] || 0)}`}
                   style={{ width: `${((categoryRatings[category.id] || 0) / 5) * 100}%` }}
                 ></div>
               </div>
@@ -84,6 +84,7 @@ const ReviewAnalyzer = ({ reviews }) => {
     </div>
   );
 };
+
 const getRatingColor = (rating) => {
   if (rating >= 4.5) return 'bg-green-500';
   if (rating >= 4) return 'bg-green-400';
@@ -104,4 +105,4 @@ ReviewAnalyzer.propTypes = {
     })
   )
 };
-export default ReviewAnalyzer; 
+export default ReviewAnalyzer;

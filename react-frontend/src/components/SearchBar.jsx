@@ -14,9 +14,7 @@ const SearchBar = ({ onSearch, initialQuery = '' }) => {
   return (
     <form onSubmit={handleSubmit} className="w-full max-w-5xl mx-auto">
       <div className="relative">
-        {}
         <div className="flex bg-white rounded-lg shadow-md border border-gray-300 hover:shadow-lg transition-shadow duration-200 overflow-hidden">
-          {}
           <div className="flex-1 relative">
             <input
               type="text"
@@ -26,7 +24,6 @@ const SearchBar = ({ onSearch, initialQuery = '' }) => {
               className="w-full h-12 px-4 text-gray-800 placeholder-gray-500 border-none outline-none focus:ring-0 text-base bg-transparent"
             />
           </div>
-          {}
           <button
             type="submit"
             className="bg-orange-500 hover:bg-orange-600 transition-colors duration-200 px-6 py-3 flex items-center justify-center text-white font-medium"
@@ -37,9 +34,7 @@ const SearchBar = ({ onSearch, initialQuery = '' }) => {
             </svg>
           </button>
         </div>
-        {}
         <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg hidden">
-          {}
         </div>
       </div>
     </form>
@@ -49,4 +44,4 @@ SearchBar.propTypes = {
   onSearch: PropTypes.func.isRequired,
   initialQuery: PropTypes.string
 };
-export default SearchBar; 
+export default SearchBar;

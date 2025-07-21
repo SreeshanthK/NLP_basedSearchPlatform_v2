@@ -5,9 +5,9 @@ const ProductCard = ({ product }) => {
   const [showModal, setShowModal] = useState(false);
   const formattedReviews = product.reviews?.map(review => ({
     rating: review.rating || 5,
-    text: review.content || review.title || 'No review text available',
-    username: review.userName || 'Anonymous',
-    date: review.createdAt || new Date().toISOString(),
+    text: review.review_text || 'No review text available',
+    username: review.reviewer_name || 'Anonymous',
+    date: review.review_date || new Date().toISOString(),
     title: review.title || ''
   })) || [];
   const openModal = () => {
@@ -34,26 +34,22 @@ const ProductCard = ({ product }) => {
   }, [showModal]);
   return (
     <>
-      {}
-      <div 
+      <div
         className="bg-white rounded-lg shadow-md border border-gray-200 hover:shadow-lg transition-all duration-300 overflow-hidden cursor-pointer group relative flex"
         onClick={openModal}
       >
-        {}
         <div className="w-48 h-48 bg-gradient-to-br from-gray-100 via-gray-50 to-gray-100 relative overflow-hidden flex-shrink-0">
           <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-          {}
           <div className="w-full h-full flex items-center justify-center text-gray-400">
             <svg className="w-20 h-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
           </div>
-          {}
           {product.stocks !== undefined && (
             <div className="absolute top-2 left-2">
               <span className={`px-2 py-1 rounded-md text-xs font-semibold ${
-                product.stocks > 0 
-                  ? 'bg-green-100 text-green-700 border border-green-200' 
+                product.stocks > 0
+                  ? 'bg-green-100 text-green-700 border border-green-200'
                   : 'bg-red-100 text-red-700 border border-red-200'
               }`}>
                 {product.stocks > 0 ? `In Stock` : 'Out of Stock'}
@@ -61,15 +57,11 @@ const ProductCard = ({ product }) => {
             </div>
           )}
         </div>
-        {}
         <div className="flex-1 p-4 flex flex-col justify-between">
-          {}
           <div>
-            {}
             <h3 className="text-base font-semibold text-gray-900 line-clamp-2 group-hover:text-blue-600 transition-colors duration-200 mb-2">
               {product.name}
             </h3>
-            {}
             {product.averageRating && (
               <div className="flex items-center gap-2 mb-2">
                 <div className="flex text-yellow-400 text-sm">
@@ -85,11 +77,9 @@ const ProductCard = ({ product }) => {
                 </span>
               </div>
             )}
-            {}
             <p className="text-gray-600 text-sm line-clamp-3 leading-relaxed mb-3">
               {product.description || 'No description available.'}
             </p>
-            {}
             {(product.material || product.size || product.gender) && (
               <div className="mb-3">
                 <ul className="text-sm text-gray-700 space-y-1">
@@ -114,7 +104,6 @@ const ProductCard = ({ product }) => {
                 </ul>
               </div>
             )}
-            {}
             <div className="flex flex-wrap gap-2 mb-3">
               {product.brand && (
                 <span className="bg-gray-100 text-gray-700 px-2 py-1 rounded-md text-xs font-medium">
@@ -133,15 +122,13 @@ const ProductCard = ({ product }) => {
               )}
             </div>
           </div>
-          {}            <div className="flex items-end justify-between">
-            {}
+                      <div className="flex items-end justify-between">
             <div className="flex flex-col">
               <div className="flex items-baseline gap-2 mb-1">
                 <span className="text-2xl font-bold text-gray-900">
                   ₹{product.price?.toFixed(2)}
                 </span>
               </div>
-              {}
               <div className="text-sm text-gray-600 mb-1">
                 <div className="flex items-center gap-1">
                   <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -158,9 +145,8 @@ const ProductCard = ({ product }) => {
                 })()}%
               </span>
             </div>
-            {}
             <div className="flex flex-col gap-2">
-              <button 
+              <button
                 onClick={(e) => {
                   e.stopPropagation();
                   openModal();
@@ -173,17 +159,13 @@ const ProductCard = ({ product }) => {
           </div>
         </div>
       </div>
-      {}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          {}
-          <div 
+          <div
             className="absolute inset-0 bg-black/70 backdrop-blur-md transition-opacity duration-300"
             onClick={closeModal}
           ></div>
-          {}
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-7xl max-h-[90vh] overflow-hidden transform transition-all duration-300 scale-100">
-            {}
             <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex justify-between items-center z-10">
               <div className="flex-1">
                 <h1 className="text-xl font-bold text-gray-900 mb-1">
@@ -219,12 +201,9 @@ const ProductCard = ({ product }) => {
                 </svg>
               </button>
             </div>
-            {}
             <div className="flex h-[calc(90vh-160px)]">
-              {}
               <div className="w-[30%] bg-gray-50 border-r border-gray-200 overflow-y-auto">
                 <div className="p-5 space-y-5">
-                  {}
                   <div className="w-32 h-32 bg-gradient-to-br from-gray-200 to-gray-300 rounded-lg overflow-hidden">
                     <div className="w-full h-full flex items-center justify-center text-gray-500">
                       <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -232,14 +211,12 @@ const ProductCard = ({ product }) => {
                       </svg>
                     </div>
                   </div>
-                  {}
                   <div>
                     <h3 className="text-sm font-semibold text-gray-900 mb-2">Description</h3>
                     <p className="text-gray-700 leading-relaxed text-xs">
                       {product.description || 'No description available.'}
                     </p>
                   </div>
-                  {}
                   <div>
                     <h3 className="text-sm font-semibold text-gray-900 mb-3">Specifications</h3>
                     <div className="space-y-2">
@@ -262,7 +239,6 @@ const ProductCard = ({ product }) => {
                       ))}
                     </div>
                   </div>
-                  {}
                   {product.tags && product.tags.length > 0 && (
                     <div>
                       <h3 className="text-sm font-semibold text-gray-900 mb-2">Tags</h3>
@@ -275,7 +251,6 @@ const ProductCard = ({ product }) => {
                       </div>
                     </div>
                   )}
-                  {}
                   <div className="bg-white rounded-lg p-3 border border-gray-200">
                     <div className="flex items-center gap-2">
                       <div className={`w-2 h-2 rounded-full ${product.stocks > 0 ? 'bg-green-500' : 'bg-red-500'}`}></div>
@@ -286,10 +261,8 @@ const ProductCard = ({ product }) => {
                   </div>
                 </div>
               </div>
-              {}
               <div className="w-[70%] bg-white overflow-y-auto">
                 <div className="p-5 space-y-5">
-                  {}
                   {formattedReviews.length > 0 && (
                     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-100">
                       <h2 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
@@ -305,7 +278,6 @@ const ProductCard = ({ product }) => {
                       </div>
                     </div>
                   )}
-                  {}
                   {formattedReviews.length > 0 ? (
                     <div>
                       <div className="flex items-center justify-between mb-4">
@@ -332,10 +304,10 @@ const ProductCard = ({ product }) => {
                                 <div className="flex items-center justify-between mb-1">
                                   <h4 className="font-semibold text-gray-900 text-xs">{review.username}</h4>
                                   <span className="text-xs text-gray-500">
-                                    {new Date(review.date).toLocaleDateString('en-US', { 
-                                      year: 'numeric', 
-                                      month: 'short', 
-                                      day: 'numeric' 
+                                    {new Date(review.date).toLocaleDateString('en-US', {
+                                      year: 'numeric',
+                                      month: 'short',
+                                      day: 'numeric'
                                     })}
                                   </span>
                                 </div>

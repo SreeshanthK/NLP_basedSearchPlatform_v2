@@ -1,9 +1,11 @@
 const stringSimilarity = require('string-similarity');
+
 function preprocessQuery(query) {
     if (!query || typeof query !== 'string') {
         return '';
     }
     let processed = query.toLowerCase().trim();
+
     const corrections = {
         'smart phones': 'smartphones',
         'smart phone': 'smartphone',
@@ -43,6 +45,7 @@ function preprocessQuery(query) {
         'smart-watch': 'smartwatch',
         'smart watches': 'smartwatches',
         'smartwach': 'smartwatch',
+
         'boat': 'boAt',
         'bOat': 'boAt',
         'BOAT': 'boAt',
@@ -67,6 +70,7 @@ function preprocessQuery(query) {
         'nokia': 'nokia',
         'motorola': 'motorola',
         'moto': 'motorola',
+
         'running shoes': 'sneakers',
         'sports shoes': 'sneakers',
         'athletic shoes': 'sneakers',
@@ -81,6 +85,7 @@ function preprocessQuery(query) {
         'sneeker': 'sneakers',
         'snickers': 'sneakers',
         'sniker': 'sneakers',
+
         'good quality': 'high rating',
         'best quality': 'high rating',
         'top rated': 'high rating',
@@ -89,6 +94,7 @@ function preprocessQuery(query) {
         'gud quality': 'high rating',
         'best': 'high rating',
         'top': 'high rating',
+
         'under rs': 'under',
         'below rs': 'below',
         'above rs': 'above',
@@ -102,12 +108,15 @@ function preprocessQuery(query) {
         'rupees': 'rs',
         'rupee': 'rs'
     };
+
     for (const [wrong, correct] of Object.entries(corrections)) {
         const regex = new RegExp(`\\b${wrong}\\b`, 'gi');
         processed = processed.replace(regex, correct);
     }
+
     processed = processed.replace(/(\d+)k\b/gi, (match, num) => `${num}000`);
     processed = processed.replace(/(\d+)K\b/g, (match, num) => `${num}000`);
+
     processed = processed.replace(/(\d+(?:\.\d+)?)\s*star[s]?\s*above/gi, '$1+ rating');
     processed = processed.replace(/(\d+(?:\.\d+)?)\s*star[s]?\s*and\s*above/gi, '$1+ rating');
     processed = processed.replace(/above\s*(\d+(?:\.\d+)?)\s*star[s]?/gi, '$1+ rating');
@@ -117,6 +126,7 @@ function preprocessQuery(query) {
     processed = processed.replace(/minimum\s*(\d+(?:\.\d+)?)\s*star[s]?/gi, '$1+ rating');
     processed = processed.replace(/min\s*(\d+(?:\.\d+)?)\s*star[s]?/gi, '$1+ rating');
     processed = processed.replace(/\b(\d+(?:\.\d+)?)\s*star[s]?\b/gi, '$1+ rating');
+
     const keyTerms = {
         'smartphone': ['smartfone', 'smrtphone', 'smartphon'],
         'earbuds': ['earbuds', 'earbud', 'earbusd'],
@@ -124,6 +134,7 @@ function preprocessQuery(query) {
         'sneakers': ['sneekers', 'sneeker', 'snickers'],
         'laptop': ['leptop', 'laptap', 'labtop']
     };
+
     for (const [correct, typos] of Object.entries(keyTerms)) {
         for (const typo of typos) {
             if (processed.includes(typo)) {
@@ -131,46 +142,53 @@ function preprocessQuery(query) {
             }
         }
     }
+
     return processed;
 }
+
 function calculateCharSimilarity(str1, str2) {
     if (!str1 || !str2) return 0;
     const maxLength = Math.max(str1.length, str2.length);
     if (maxLength === 0) return 1;
+
     let matches = 0;
     const minLength = Math.min(str1.length, str2.length);
+
     for (let i = 0; i < minLength; i++) {
         if (str1[i] === str2[i]) {
             matches++;
         }
     }
+
     return matches / maxLength;
 }
+
 function fuzzyMatchCategory(queryTerm, categories) {
     const matches = [];
-    const threshold = 0.65;
+    const threshold = 0.5;
+
     for (const [category, variants] of Object.entries(categories)) {
         for (const variant of variants) {
-            if (queryTerm === variant) {
-                matches.push({ category, variant, score: 1.0, type: 'exact' });
-                continue;
-            }
+
             if (queryTerm.includes(variant) || variant.includes(queryTerm)) {
-                const score = Math.max(queryTerm.length, variant.length) > 0 ? 
+                const score = Math.max(queryTerm.length, variant.length) > 0 ?
                     Math.min(queryTerm.length, variant.length) / Math.max(queryTerm.length, variant.length) : 0;
-                matches.push({ category, variant, score: 0.85 + (score * 0.1), type: 'substring' });
+                matches.push({ category, variant, score: 0.85 + (score * 0.1), type: 'semantic' });
                 continue;
             }
+
             const similarity = stringSimilarity.compareTwoStrings(queryTerm, variant);
             if (similarity >= threshold) {
                 matches.push({ category, variant, score: similarity, type: 'similarity' });
             }
+
             const charSimilarity = calculateCharSimilarity(queryTerm, variant);
             if (charSimilarity >= threshold) {
                 matches.push({ category, variant, score: charSimilarity * 0.8, type: 'char-similarity' });
             }
         }
     }
+
     const uniqueMatches = new Map();
     for (const match of matches) {
         const key = `${match.category}-${match.variant}`;
@@ -178,9 +196,12 @@ function fuzzyMatchCategory(queryTerm, categories) {
             uniqueMatches.set(key, match);
         }
     }
+
     const sortedMatches = Array.from(uniqueMatches.values()).sort((a, b) => b.score - a.score);
+
     return sortedMatches;
 }
+
 module.exports = {
     preprocessQuery,
     calculateCharSimilarity,
