@@ -194,8 +194,9 @@ const Home = () => {
                 </div>
               </form>
               <div className="text-center text-[11px] text-red-600 italic mt-[-0.75rem] mb-8 bg-red-50 border border-red-200 rounded-md px-3 py-2 max-w-md mx-auto">
-                ⚠️ Note: Our backend is hosted on Render. Initial responses may take a few seconds. Thank you for your patience!
+                ⚠️ Note: Our backend is hosted on Render's free tier. Initial responses may be slightly delayed. Thank you for your patience!
               </div>
+
 
             <div className="w-full">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 px-4">
