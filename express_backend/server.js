@@ -14,7 +14,7 @@ const PORT = process.env.PORT || 8001;
 
 app.use(express.json());
 app.use(cors({
-    origin: ['http://localhost:3000','http://localhost:5175'
+    origin: ['https://search-relevance-optimizer.vercel.app/ , http://localhost:3000','http://localhost:5175'
               ,'http://localhost:5173','http://localhost:5174',
               'http://localhost:5176'
     ],
