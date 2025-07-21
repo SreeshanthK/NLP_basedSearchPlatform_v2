@@ -14,14 +14,20 @@ const PORT = process.env.PORT || 8001;
 
 app.use(express.json());
 app.use(cors({
-    origin: ['https://search-relevance-optimizer.vercel.app/ , http://localhost:3000','http://localhost:5175'
-              ,'http://localhost:5173','http://localhost:5174',
-              'http://localhost:5176'
-    ],
-    credentials: true,
-    methods: ['*'],
-    allowedHeaders: ['*']
+  origin: [
+    'https://search-relevance-optimizer.vercel.app',
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:5175',
+    'http://localhost:5176'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
+app.options('*', cors());
 
 app.use('/', searchRoutes);
 app.use('/api/reviews', reviewRoutes);
