@@ -169,7 +169,7 @@ const Home = () => {
                 </div>
               </div>
             </div>
-            <form onSubmit={handleSearch} className="max-w-xl mx-auto mb-12">
+            <form onSubmit={handleSearch} className="max-w-[43.2rem] mx-auto mb-12">
               <div className="relative">
                 <div className="flex bg-white rounded-lg shadow-lg border border-gray-300 hover:shadow-xl transition-shadow duration-200 overflow-hidden">
                   <div className="flex-1 relative">
@@ -178,7 +178,7 @@ const Home = () => {
                       placeholder="Try: 'i want to buy laptops with rtx gpu' or 'show me smartphones with snapdragon processor over 60000 rs'"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full h-12 px-4 text-gray-800 placeholder-gray-500 border-none outline-none focus:ring-0 text-sm bg-transparent"
+                      className="w-full h-12 px-4 text-gray-800 placeholder:text-[10px] placeholder-gray-500 border-none outline-none focus:ring-0 text-sm bg-transparent"
                     />
                   </div>
                   <button
@@ -193,6 +193,7 @@ const Home = () => {
                 </div>
               </div>
             </form>
+
             <div className="w-full">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 px-4">
                 <div className="text-center group bg-gradient-to-br from-blue-50 to-indigo-50 p-3 rounded-lg border border-blue-200">
