@@ -52,7 +52,7 @@ app.get('/', (req, res) => {
 async function startServer() {
     await initializeConnections();
 
-    app.listen(PORT, 'localhost', () => {
+    app.listen(PORT, () => {
         console.log(`🚀 Server running on http://localhost:${PORT}`);
     });
 }
