@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:8001/api/';
+const API_BASE_URL = 'https://search-relevance-optimizer-backend.onrender.com/';
 
 const api = axios.create({
     baseURL: API_BASE_URL,
