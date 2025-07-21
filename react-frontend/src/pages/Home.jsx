@@ -175,7 +175,7 @@ const Home = () => {
                   <div className="flex-1 relative">
                     <input
                       type="text"
-                      placeholder="Try: 'running shoes under ₹5000' or 'wireless headphones'"
+                      placeholder="Try: 'i want to buy laptops with rtx gpu' or 'show me smartphones with snapdragon processor over 60000 rs'"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="w-full h-12 px-4 text-gray-800 placeholder-gray-500 border-none outline-none focus:ring-0 text-sm bg-transparent"
