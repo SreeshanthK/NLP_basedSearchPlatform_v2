@@ -193,7 +193,7 @@ const Home = () => {
                   </div>
                 </div>
               </form>
-              <div className="text-center text-[11px] text-red-600 italic mt-[-0.75rem] mb-8 bg-red-50 border border-red-200 rounded-md px-3 py-2 max-w-md mx-auto">
+              <div className="text-center text-[10px] text-red-600 italic mt-[-0.75rem] mb-8 bg-red-50 border border-red-200 rounded-md px-3 py-2 max-w-md mx-auto">
                 ⚠️ Note: Our backend is hosted on Render's free tier. Initial responses may be slightly delayed. Thank you for your patience!
               </div>
 
