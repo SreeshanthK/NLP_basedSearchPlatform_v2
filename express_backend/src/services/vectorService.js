@@ -311,17 +311,7 @@ class VectorSearchService {
         this.tfidf = new natural.TfIdf();
     }
 
-    async search(query, limit = 50) {
-        const results = await this.searchSimilar(query, limit);
-        return results.map(result => ({
-            id: result.productId,
-            title: result.metadata.title,
-            category: result.metadata.category,
-            brand: result.metadata.brand,
-            price: result.metadata.price,
-            score: result.similarity
-        }));
-    }
+
 
     getIndexStats() {
         const categories = new Set();

@@ -10,59 +10,12 @@ class SearchController {
                 return res.status(400).json({ error: 'Query is required' });
             }
 
-            const { getMongoClient, initializeConnections } = require('../config/database');
-            let mongoClient = getMongoClient();
-
-            if (!mongoClient) {
-                await initializeConnections();
-                mongoClient = getMongoClient();
-
-                if (!mongoClient) {
-                    console.error(' Failed to establish MongoDB connection!');
-                    return res.status(500).json({
-                        error: 'Database connection issue',
-                        message: 'Could not connect to MongoDB'
-                    });
-                }
-            }
-
-            try {
-                const db = mongoClient.db('ecommerce');
-                const collection = db.collection('products');
-                const count = await collection.countDocuments({});
-
-                if (count === 0) {
-                    console.error(' WARNING: Product collection is empty!');
-                    return res.status(500).json({
-                        error: 'No products available',
-                        message: 'The product database appears to be empty'
-                    });
-                }
-            } catch (dbError) {
-                console.error(' Database access error:', dbError);
-                return res.status(500).json({
-                    error: 'Database access issue',
-                    message: dbError.message
-                });
-            }
-
             const filters = improvedNlpService.parseQueryWithNLP(query);
 
             const products = await searchService.searchProducts(query, filters);
 
             if (!products.products || products.products.length === 0) {
                 console.error(' No results found! Search methods used:', products.searchMethods || 'none');
-
-                try {
-                    const db = mongoClient.db('ecommerce');
-                    const collection = db.collection('products');
-                    const sampleProducts = await collection.find({}).limit(5).toArray();
-
-                    sampleProducts.forEach((product, index) => {
-                    });
-                } catch (err) {
-                    console.error('Failed to get sample products:', err);
-                }
             }
 
             const frontendFilters = {
